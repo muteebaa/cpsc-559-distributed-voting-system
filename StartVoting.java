@@ -26,6 +26,7 @@ public class StartVoting {
     }
 
     private static void startNewElection() {
+        System.out.println("\nStarting a new election!");
         System.out.print("Enter your node's port number: ");
         int myPort = scanner.nextInt();
         scanner.nextLine(); // Consume newline
@@ -38,7 +39,7 @@ public class StartVoting {
 
         // Generate session code and store it
         String sessionCode = peer.startNewSession("192.168.1.100", myPort, options); // Replace with actual IP
-        System.out.println("Session created! Share this code: " + sessionCode);
+        System.out.println("\nSession created! Share this code: " + sessionCode);
         System.out.println("Voting options: " + options);
 
         waitForLeaderToStartVoting(peer);
@@ -46,6 +47,7 @@ public class StartVoting {
     }
 
     private static void joinExistingElection() {
+        System.out.println("\nJoining an existing election!");
         System.out.print("Enter session code: ");
         String sessionCode = scanner.nextLine();
 
@@ -71,7 +73,6 @@ public class StartVoting {
             String input = scanner.nextLine().trim().toLowerCase();
 
             if (input.equals("start")) {
-                System.out.println("Voting started!");
                 peer.startVoting();
                 peer.promptForVote(); // Prompt leader to vote
                 break;

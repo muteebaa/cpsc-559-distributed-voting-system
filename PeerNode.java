@@ -74,6 +74,7 @@ public class PeerNode {
         } else if (message.startsWith("START_VOTING")) {
             promptForVote();
         } else if (message.startsWith("VOTING_ENDED:")) {
+            System.out.println();
             System.out.println(message.substring(13));
         }
     }
@@ -127,7 +128,9 @@ public class PeerNode {
 
     public void promptForVote() {
         String options = SessionRegistry.getVotingOptions(sessionCode).toString();
+        System.out.println("\nVoting started!");
         System.out.println("Voting options: " + options);
+
         System.out.print("Enter your vote: ");
         if (scanner.hasNextLine()) {
             String vote = scanner.nextLine();
@@ -165,6 +168,7 @@ public class PeerNode {
             voteTally.put(option.trim(), 0);
         }
         this.sessionCode = sessionCode;
+        setLeaderToken(true); // Leader token is initially with the session creator
         return sessionCode;
     }
 
