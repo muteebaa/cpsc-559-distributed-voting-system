@@ -1,41 +1,26 @@
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Scanner;
+import java.util.*;
 
+/**
+ * Represents a peer node in a distributed voting system.
+ * Handles communication, voting, and peer registration.
+ */
 public class PeerNode {
     private static final Scanner scanner = new Scanner(System.in);
-    private NodeCommunication nodeComm;
-    private int port;
-
-    // vote tally
+    private final NodeCommunication nodeComm;
+    private final int port;
+    private final int nodeId; // will be used in leader election
+    private final List<String> peerNodes; // each peer will have a list of other peers
     private Map<String, Integer> voteTally;
-
-    // host and port of other peers
-    private List<String> peerNodes;
-
-    // leader token
     private boolean leaderToken;
-
-    // node id
-    private int nodeId;
-
-    private String leaderAddress; // Store the leader's address
-
+    private String leaderAddress;
     private String sessionCode;
 
-    public void registerWithLeader(String leaderAddress) {
-        this.leaderAddress = leaderAddress;
-        String registrationMessage = "REGISTER:localhost:" + port;
-        nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]));
-        nodeComm.sendMessage(registrationMessage, nodeComm.getClientSocket());
-
-        voteTally = new HashMap<>();
-        // todo: handle leader's response
-    }
-
+    /**
+     * Initializes a new PeerNode instance.
+     *
+     * @param port   The port the peer listens on.
+     * @param nodeId The unique identifier for this node.
+     */
     public PeerNode(int port, int nodeId) {
         this.nodeComm = new NodeCommunication();
         this.port = port;
@@ -48,7 +33,7 @@ public class PeerNode {
     }
 
     /**
-     * Starts the peer as a server.
+     * Starts the peer as a server and registers with the leader.
      */
     public void startPeer() {
         new Thread(() -> nodeComm.startServer(port, this::handleMessage)).start();
@@ -56,26 +41,33 @@ public class PeerNode {
         registerWithLeader(leaderAddress);
     }
 
-    public void handleMessage(String message) {
-        // System.out.println("handleMessage: " + message);
-        // nodeComm.connectToNode(leaderAddress.split(":")[0],
-        // Integer.parseInt(leaderAddress.split(":")[1]));
-        // nodeComm.sendMessage("VOTE:" + vote, nodeComm.getClientSocket());
-        if (message.startsWith("REGISTER:")) {
-            // trim the "VOTE" part
-            String peer = // peer address is the part after "REGISTER:"
-                    message.substring(9);
-            int peerId = // peer id is the last character in the message
-                    Integer.parseInt(message.substring(message.length() - 1));
+    /**
+     * Registers this peer with the leader node.
+     *
+     * @param leaderAddress The leader node's address in the format "host:port".
+     */
+    public void registerWithLeader(String leaderAddress) {
+        this.leaderAddress = leaderAddress;
+        String registrationMessage = "REGISTER:localhost:" + port;
+        nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]));
+        nodeComm.sendMessage(registrationMessage, nodeComm.getClientSocket());
+        voteTally = new HashMap<>();
+        // TODO: Handle leader's response
+    }
 
+    /**
+     * Handles incoming messages.
+     *
+     * @param message The received message.
+     */
+    public void handleMessage(String message) {
+        if (message.startsWith("REGISTER:")) {
+            String peer = message.substring(9);
+            int peerId = Integer.parseInt(message.substring(message.length() - 1));
             nodeComm.updatePeerNodeAddresses(peer, peerId);
         } else if (message.startsWith("VOTE:")) {
-            // trim the "VOTE" part
             String vote = message.substring(5).trim();
-            // System.out.println("Received vote: " + vote);
             updateVoteTally(vote);
-
-            // if this is the leader, broadcast the vote to other peers
             if (leaderToken) {
                 nodeComm.broadcastMessage("VOTE:" + vote, nodeComm.getPeerAddresses());
             }
@@ -86,21 +78,11 @@ public class PeerNode {
         }
     }
 
-    private void findLeader() {
-        // hardcoding the leader address for now
-        leaderAddress = "localhost:5000";
-    }
-
     /**
-     * Connects to another peer and sends a test message.
+     * Determines the leader node. (Currently hardcoded)
      */
-    public void sendMessageToPeer(String host, int targetPort, String message) {
-        nodeComm.connectToNode(host, targetPort);
-        nodeComm.sendMessage(message, nodeComm.getClientSocket());
-    }
-
-    public int getNodeId() {
-        return nodeId;
+    private void findLeader() {
+        leaderAddress = "localhost:5000";
     }
 
     public boolean hasLeaderToken() {
@@ -111,42 +93,30 @@ public class PeerNode {
         this.leaderToken = leaderToken;
     }
 
+    /**
+     * Updates the vote tally for a given vote.
+     *
+     * @param vote The vote received.
+     * @return The updated vote tally.
+     */
     public Map<String, Integer> updateVoteTally(String vote) {
-        if (voteTally.containsKey(vote)) {
-            voteTally.put(vote, voteTally.get(vote) + 1);
-        } else {
-            voteTally.put(vote, 1);
-        }
-
-        // System.out.println("updated vote tally: " + voteTally);
+        voteTally.put(vote, voteTally.getOrDefault(vote, 0) + 1);
         return voteTally;
     }
 
-    // method to send vote to other peers
+    /**
+     * Sends a vote to the leader node.
+     *
+     * @param vote The vote being submitted.
+     */
     public void sendVoteToLeader(String vote) {
         nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]));
         nodeComm.sendMessage("VOTE:" + vote, nodeComm.getClientSocket());
     }
 
-    // method to add peer nodes
-    public void addPeerNode(String host, int newPort) {
-        peerNodes.add(host + ":" + newPort);
-
-        broadcastPeerNodes(newPort);
-    }
-
-    public List<String> getPeerNodes() {
-        return nodeComm.getPeerAddresses();
-    }
-
-    // method to send the peer node to other peers
-    public void broadcastPeerNodes(int newPort) {
-        String message = "NEW_PEER" + "localhost" + ":" + newPort;
-
-        nodeComm.broadcastMessage(message, peerNodes);
-
-    }
-
+    /**
+     * Prompts the user for a vote.
+     */
     public void startVoting() {
         // System.out.println("starting voting");
         // System.out.println("peer nodes: " + nodeComm.getPeerAddresses());
@@ -156,16 +126,13 @@ public class PeerNode {
     }
 
     public void promptForVote() {
-        String options = SessionRegistry.getVotingOptions(sessionCode).toString(); // TODO: broadcasst vote so each node
-                                                                                   // has a local copy? is this
-                                                                                   // necessary?
+        String options = SessionRegistry.getVotingOptions(sessionCode).toString();
         System.out.println("Voting options: " + options);
         System.out.print("Enter your vote: ");
         if (scanner.hasNextLine()) {
             String vote = scanner.nextLine();
             sendVoteToLeader(vote);
             System.out.println("Vote submitted: " + vote);
-
             if (!leaderToken) {
                 System.out.println("We will let you know when voting ends.");
             }
@@ -174,18 +141,22 @@ public class PeerNode {
         }
     }
 
+    /**
+     * Ends the voting process and broadcasts results.
+     */
     public void endVoting() {
         String results = "VOTING_ENDED:Thanks for voting! Voting results: " + voteTally;
-        System.out.println(results.substring(13)); // display result to leader
-        nodeComm.broadcastMessage(results, nodeComm.getPeerAddresses()); // this sends to everyone except the leader
-    }
-
-    public Map<String, Integer> getVoteTally() {
-        return voteTally;
+        System.out.println(results.substring(13));
+        nodeComm.broadcastMessage(results, nodeComm.getPeerAddresses());
     }
 
     /**
-     * Starts a new session and saves it in the session registry.
+     * Starts a new voting session and saves it.
+     *
+     * @param ip      The IP address of the session host.
+     * @param port    The port for the session.
+     * @param options The available voting options.
+     * @return The generated session code.
      */
     public String startNewSession(String ip, int port, String options) {
         String sessionCode = generateRandomCode();
@@ -193,13 +164,12 @@ public class PeerNode {
         for (String option : options.split(",")) {
             voteTally.put(option.trim(), 0);
         }
-
         this.sessionCode = sessionCode;
         return sessionCode;
     }
 
     /**
-     * Gets available session codes from the file.
+     * Displays available voting sessions.
      */
     public static void displayAvailableSessions() {
         Map<String, String> sessions = SessionRegistry.loadSessions();
@@ -213,6 +183,11 @@ public class PeerNode {
         }
     }
 
+    /**
+     * Generates a random 6-character session code.
+     *
+     * @return A randomly generated session code.
+     */
     private String generateRandomCode() {
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         Random random = new Random();
@@ -222,5 +197,4 @@ public class PeerNode {
         }
         return code.toString();
     }
-
 }
