@@ -1,4 +1,5 @@
 import java.util.HashSet;
+import java.util.NoSuchElementException;
 import java.util.Set;
 
 
@@ -16,5 +17,14 @@ public class DatabaseMimic {
             }
         }
         return false;
+    }
+
+    public Session getSession(String sessionCode){
+        for (Session session : sessions) {
+            if (session.getSessionCode().equals(sessionCode)) {
+                return session;
+            }
+        }
+        throw new NoSuchElementException("Element doesn't exist");
     }
 }
