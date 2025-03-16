@@ -224,8 +224,7 @@ public class PeerNode {
      * @return The generated session code.
      */
     public String startNewSession(String ip, int port, String options) {
-        String sessionCode = generateRandomCode();
-        SessionRegistry.saveSession(sessionCode, ip, port, options);
+        String sessionCode = SessionRegistry.saveSession(ip, port, options);
         for (String option : options.split(",")) {
             voteTally.put(option.trim(), 0);
         }

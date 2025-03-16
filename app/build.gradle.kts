@@ -11,3 +11,7 @@ application {
 tasks.named<JavaExec>("run") {
     standardInput = System.`in` // Gradle sends empty stream by default
 }
+
+dependencies {
+    implementation("com.google.code.gson:gson:2.12.1")
+}
