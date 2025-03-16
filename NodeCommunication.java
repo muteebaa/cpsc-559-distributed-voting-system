@@ -26,7 +26,7 @@ public class NodeCommunication {
             serverSocket = new ServerSocket(port);
             while (true) {
                 Socket socket = serverSocket.accept();
-                handleIncomingMessage(socket);
+                new Thread(() -> handleIncomingMessage(socket)).start(); // Run message handling on a new thread
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -57,7 +57,7 @@ public class NodeCommunication {
         try (PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
             out.println(message);
         } catch (IOException e) {
-            e.printStackTrace();
+            e.printStackTrace(); // Print the full exception stack trace
         }
     }
 
@@ -69,7 +69,7 @@ public class NodeCommunication {
      */
     public void updatePeerNodeAddresses(String peer, int peerId) {
         peerAddresses.put(peer, peerId);
-        broadcastMessage("NEW PEER !!: " + String.join(",", getPeerAddresses()), getPeerAddresses());
+        broadcastMessage("NEW PEER !!: " + String.join(",", getPeerAddresses()), getPeerAddresses());       
     }
 
     /**

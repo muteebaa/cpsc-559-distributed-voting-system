@@ -14,6 +14,7 @@ public class PeerNode {
     private boolean leaderToken;
     private String leaderAddress;
     private String sessionCode;
+    private boolean acknowledgment = false;
 
     /**
      * Initializes a new PeerNode instance.
@@ -46,11 +47,22 @@ public class PeerNode {
      *
      * @param leaderAddress The leader node's address in the format "host:port".
      */
-    public void registerWithLeader(String leaderAddress) {
+    public synchronized void registerWithLeader(String leaderAddress) {
+        this.acknowledgment = false;
         this.leaderAddress = leaderAddress;
         String registrationMessage = "REGISTER:localhost:" + port;
         nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]));
         nodeComm.sendMessage(registrationMessage, nodeComm.getClientSocket());
+
+        // Wait for acknowledgment from the leader
+        while (!acknowledgment) {
+            try {
+                wait();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
         voteTally = new HashMap<>();
         // TODO: Handle leader's response
     }
@@ -65,13 +77,31 @@ public class PeerNode {
             String peer = message.substring(9);
             int peerId = Integer.parseInt(message.substring(message.length() - 1));
             nodeComm.updatePeerNodeAddresses(peer, peerId);
-        } else if (message.startsWith("VOTE:")) {
-            String vote = message.substring(5).trim();
-            updateVoteTally(vote);
-            if (leaderToken) {
-                nodeComm.broadcastMessage("VOTE:" + vote, nodeComm.getPeerAddresses());
+            nodeComm.connectToNode(peer.split(":")[0], Integer.parseInt(peer.split(":")[1]));
+            nodeComm.sendMessage("ACK: You are successfully registered.", nodeComm.getClientSocket());
+        }
+        else if (message.startsWith("ACK:")) {
+            synchronized (this) {
+                acknowledgment = true;
+                notifyAll(); // Notify waiting threads
             }
-        } else if (message.startsWith("START_VOTING")) {
+            System.out.println(message);
+        }else if (message.startsWith("VOTE:")) {   
+            String[] parts = message.split(":");
+            String host = parts[1]; 
+            int port = Integer.parseInt(parts[2]); 
+            String vote = parts[3];
+            updateVoteTally(vote);
+            if (leaderToken) {                
+                nodeComm.connectToNode(host, port);
+                nodeComm.sendMessage("ACK: Your vote was successfully counted.", nodeComm.getClientSocket());
+                nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + vote, nodeComm.getPeerAddresses());               
+            }           
+        }else if (message.startsWith("UPDATE_VOTE_TALLY:")) {
+            String vote = message.substring(18).trim();
+            updateVoteTally(vote);
+        }
+        else if (message.startsWith("START_VOTING")) {
             promptForVote();
         } else if (message.startsWith("VOTING_ENDED:")) {
             System.out.println();
@@ -110,9 +140,18 @@ public class PeerNode {
      *
      * @param vote The vote being submitted.
      */
-    public void sendVoteToLeader(String vote) {
+    public synchronized void sendVoteToLeader(String vote) {       
+        this.acknowledgment = false;
         nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]));
-        nodeComm.sendMessage("VOTE:" + vote, nodeComm.getClientSocket());
+        nodeComm.sendMessage("VOTE:localhost:" + this.port + ":" + vote, nodeComm.getClientSocket());
+        // Wait for acknowledgment from the leader
+        while (!acknowledgment) {
+            try {
+                wait(); // Correct usage inside synchronized block
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }     
     }
 
     /**
