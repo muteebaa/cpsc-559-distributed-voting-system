@@ -75,10 +75,31 @@ public class PeerNode {
     public void handleMessage(String message) {
         if (message.startsWith("REGISTER:")) {
             String peer = message.substring(9);
-            int peerId = Integer.parseInt(message.substring(message.length() - 1));
-            nodeComm.updatePeerNodeAddresses(peer, peerId);
+            peerNodes.add(peer);
+            nodeComm.broadcastMessage("UPDATE_NEW_PEER:" + peerNodes, peerNodes); 
+            System.out.println("My peer list: " + peerNodes);
             nodeComm.connectToNode(peer.split(":")[0], Integer.parseInt(peer.split(":")[1]));
             nodeComm.sendMessage("ACK: You are successfully registered.", nodeComm.getClientSocket());
+        }
+        else if (message.startsWith("UPDATE_NEW_PEER:")) {
+            System.out.println("My peer list before update: " + peerNodes);
+            // Extract the peer list from the message
+            String peerListString = message.substring("UPDATE_NEW_PEER:".length()).trim();
+
+            // Remove the square brackets [ ] if present
+            peerListString = peerListString.substring(1, peerListString.length() - 1);
+
+            // Split the peers by ", " and add them to the peerNodes list
+            List<String> newPeers = Arrays.asList(peerListString.split(", "));
+    
+            // Add only new peers that are not already in peerNodes
+            for (String peer : newPeers) {
+                if (!peerNodes.contains(peer)) {
+                    peerNodes.add(peer);
+                }
+            }
+
+            System.out.println("Updated peer list: " + peerNodes);
         }
         else if (message.startsWith("ACK:")) {
             synchronized (this) {
@@ -92,10 +113,10 @@ public class PeerNode {
             int port = Integer.parseInt(parts[2]); 
             String vote = parts[3];
             updateVoteTally(vote);
-            if (leaderToken) {                
+            if (leaderToken) {                               
+                nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + vote, peerNodes);    
                 nodeComm.connectToNode(host, port);
                 nodeComm.sendMessage("ACK: Your vote was successfully counted.", nodeComm.getClientSocket());
-                nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + vote, nodeComm.getPeerAddresses());               
             }           
         }else if (message.startsWith("UPDATE_VOTE_TALLY:")) {
             String vote = message.substring(18).trim();
@@ -161,7 +182,7 @@ public class PeerNode {
         // System.out.println("starting voting");
         // System.out.println("peer nodes: " + nodeComm.getPeerAddresses());
         nodeComm.broadcastMessage("START_VOTING:" + voteTally.keySet(),
-                nodeComm.getPeerAddresses());
+                peerNodes);
 
     }
 
@@ -189,7 +210,7 @@ public class PeerNode {
     public void endVoting() {
         String results = "VOTING_ENDED:Thanks for voting! Voting results: " + voteTally;
         System.out.println(results.substring(13));
-        nodeComm.broadcastMessage(results, nodeComm.getPeerAddresses());
+        nodeComm.broadcastMessage(results, peerNodes);
     }
 
     /**
