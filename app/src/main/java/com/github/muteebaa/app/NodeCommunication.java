@@ -63,17 +63,6 @@ public class NodeCommunication {
     }
 
     /**
-     * Updates the peer address list and broadcasts the update.
-     *
-     * @param peer   The peer's address.
-     * @param peerId The peer's unique identifier.
-     */
-    public void updatePeerNodeAddresses(String peer, int peerId) {
-        peerAddresses.put(peer, peerId);
-        broadcastMessage("NEW PEER !!: " + String.join(",", getPeerAddresses()), getPeerAddresses());
-    }
-
-    /**
      * Handles an incoming message from a peer.
      *
      * @param socket The socket receiving the message.
@@ -135,15 +124,6 @@ public class NodeCommunication {
                 System.err.println("Failed to send message to " + peer);
             }
         }
-    }
-
-    /**
-     * Retrieves a list of known peer addresses.
-     *
-     * @return A list of peer addresses.
-     */
-    public List<String> getPeerAddresses() {
-        return new ArrayList<>(peerAddresses.keySet());
     }
 
     /**
