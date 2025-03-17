@@ -10,7 +10,6 @@ import java.util.function.Consumer;
 public class NodeCommunication {
     private ServerSocket serverSocket;
     private Socket clientSocket;
-    private final Map<String, Integer> peerAddresses = new HashMap<>();
     private final Map<String, Integer> voteTally = new HashMap<>();
     private Consumer<String> messageHandler; // Callback function for message handling
 
@@ -26,7 +25,7 @@ public class NodeCommunication {
             serverSocket = new ServerSocket(port);
             while (true) {
                 Socket socket = serverSocket.accept();
-                handleIncomingMessage(socket);
+                new Thread(() -> handleIncomingMessage(socket)).start(); // Run message handling on a new thread
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -57,19 +56,8 @@ public class NodeCommunication {
         try (PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
             out.println(message);
         } catch (IOException e) {
-            e.printStackTrace();
+            e.printStackTrace(); // Print the full exception stack trace
         }
-    }
-
-    /**
-     * Updates the peer address list and broadcasts the update.
-     * 
-     * @param peer   The peer's address.
-     * @param peerId The peer's unique identifier.
-     */
-    public void updatePeerNodeAddresses(String peer, int peerId) {
-        peerAddresses.put(peer, peerId);
-        broadcastMessage("NEW PEER !!: " + String.join(",", getPeerAddresses()), getPeerAddresses());
     }
 
     /**
@@ -99,7 +87,6 @@ public class NodeCommunication {
         if (message.startsWith("REGISTER:")) {
             String peer = message.substring(9, message.length() - 1);
             int peerId = Integer.parseInt(message.substring(message.length() - 1));
-            updatePeerNodeAddresses(peer, peerId);
         } else if (message.startsWith("VOTE:")) {
             updateVoteTally(message.substring(5));
         } else {
@@ -135,15 +122,6 @@ public class NodeCommunication {
                 System.err.println("Failed to send message to " + peer);
             }
         }
-    }
-
-    /**
-     * Retrieves a list of known peer addresses.
-     * 
-     * @return A list of peer addresses.
-     */
-    public List<String> getPeerAddresses() {
-        return new ArrayList<>(peerAddresses.keySet());
     }
 
     /**
