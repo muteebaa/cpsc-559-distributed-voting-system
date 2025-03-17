@@ -142,7 +142,7 @@ public class SessionRegistry {
     }
 
     private static Builder buildRegistryReq(String path) {
-        String registryAddr = "https://127.0.0.1:12020";
+        String registryAddr = "http://127.0.0.1:12020";
         URI uri = URI.create(registryAddr + path);
         return HttpRequest.newBuilder(uri)
                 .header("Content-Type", "application/json");
