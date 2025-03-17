@@ -19,8 +19,8 @@ import (
 
 type Session struct {
 	Id      SessId   `json:"id"`
-	Host    string   `json:"host"`
-	Ip      net.IP   `json:"ip"`
+	Host    net.IP   `json:"host"`
+	Port    int      `json:"port"`
 	Options []string `json:"options"`
 }
 
@@ -162,7 +162,7 @@ func addSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.Host == "" || s.Ip == nil || s.Options == nil {
+	if s.Host == nil || s.Port == 0 || s.Options == nil {
 		logger.Error("Invalid session metadata received")
 		http.Error(w, "Missing required fields", http.StatusBadRequest)
 		return
@@ -185,9 +185,9 @@ func addSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logger.Debug("Saved session: " + fmt.Sprintf("%#v", s))
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	resp := map[string]string{"id": string(newId)}
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(newId)
 }

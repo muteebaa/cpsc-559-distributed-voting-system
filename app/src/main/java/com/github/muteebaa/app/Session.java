@@ -4,30 +4,33 @@ import java.util.Collections;
 import java.util.List;
 
 public class Session {
-    // TODO: Add validation logic similar to go package, must check for `^[A-Z0-9]{6}$`
-    public final String id;
+    private String id;
     public final String host;
-    private String ip;
+    public final int port;
     public final List<String> options;
 
-    public Session(String id, String host, String ip, List<String> options) {
+    protected Session(String id, String host, int port, List<String> options) {
         this.id = id;
         this.host = host;
-        this.ip = ip;
+        this.port = port;
         this.options = Collections.unmodifiableList(options);
     }
 
-    public Session(String host, String ip, List<String> options) {
-        // TODO: Actual randomization
-        this("AAAAAA", host, ip, options);
+    public Session(String host, int port, List<String> options) {
+        this(null, host, port, options);
     }
 
-    public String getIp() {
-        return ip;
+    public String getId() {
+        return id;
     }
 
-    // TODO: Add validation logic
-    public void setIp(String id) {
-        this.ip = id;
+    /*
+     * TODO: Add validation logic checking that:
+     *   1. id is null
+     *   2. id is 6-length upper-alphanumeric string
+     * Probably return a runtime exception if either of above are false
+     */
+    public void setId(String id) {
+        this.id = id;
     }
 }

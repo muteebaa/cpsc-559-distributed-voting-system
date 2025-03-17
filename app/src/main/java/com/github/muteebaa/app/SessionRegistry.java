@@ -22,9 +22,9 @@ public class SessionRegistry {
     /**
      * Saves a session code to a file.
      */
-    public static void saveSession(String sessionCode, String host, int port, String options) {
+    public static String saveSession(String host, int port, String options) {
         // FIXME: Handle port number properly
-        Session session = new Session(host, Integer.toString(port), Arrays.asList(options.split(",")));
+        Session session = new Session(host, port, Arrays.asList(options.split(",")));
         Gson gson = new Gson();
 
         HttpClient client = HttpClient.newHttpClient();
@@ -38,13 +38,15 @@ public class SessionRegistry {
             resp = client.send(req, BodyHandlers.ofString());
         } catch (InterruptedException e) {
             // FIXME: Ignored exception
-            return;
             e.printStackTrace();
+            return "";
         } catch (IOException e) {
             // FIXME: Ignored exception
-            return;
             e.printStackTrace();
+            return "";
         }
+
+        return gson.fromJson(resp.body(), String.class);
     }
 
     /**
@@ -77,8 +79,8 @@ public class SessionRegistry {
 
         sessionList.parallelStream()
                 .forEach(e -> {
-                    String details = String.format("%s:%s,%s", e.host, e.getIp(), String.join(",", e.options));
-                    sessions.put(e.id, details);
+                    String details = String.format("%s:%d,%s", e.host, e.port, String.join(",", e.options));
+                    sessions.put(e.getId(), details);
                 });
 
         return sessions;
@@ -89,7 +91,7 @@ public class SessionRegistry {
      */
     public static void displayAvailableSessions() {
         HttpClient client = HttpClient.newHttpClient();
-        HttpRequest req = buildRegistryReq("/sessions/all").build();
+        HttpRequest req = buildRegistryReq("/sessions").build();
 
         HttpResponse<String> resp;
         try {
@@ -106,9 +108,9 @@ public class SessionRegistry {
         }
 
         Gson gson = new Gson();
-        TypeToken<Collection<String>> collectionType = new TypeToken<Collection<String>>() {
+        TypeToken<Collection<Session>> collectionType = new TypeToken<Collection<Session>>() {
         };
-        Collection<String> sessionList = gson.fromJson(resp.body(), collectionType);
+        Collection<Session> sessionList = gson.fromJson(resp.body(), collectionType);
 
         if (sessionList.isEmpty()) {
             System.out.println("No available sessions found.");
@@ -120,7 +122,7 @@ public class SessionRegistry {
 
     public static List<String> getVotingOptions(String sessionCode) {
         HttpClient client = HttpClient.newHttpClient();
-        HttpRequest req = buildRegistryReq("/sessions" + sessionCode).build();
+        HttpRequest req = buildRegistryReq("/sessions/" + sessionCode).build();
 
         HttpResponse<String> resp;
         try {
