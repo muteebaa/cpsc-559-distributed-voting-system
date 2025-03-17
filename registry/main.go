@@ -58,6 +58,8 @@ func run(port int) {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 
+	slog.Info("server startup initiated")
+
 	go func() {
 		<-sig
 
@@ -71,8 +73,10 @@ func run(port int) {
 			}
 		}()
 
+		slog.Info("shutting down server")
 		err := server.Shutdown(shutdownCtx)
 		if err != nil {
+			slog.Error("cannot shutdown server")
 			panic(err)
 		}
 
@@ -81,6 +85,7 @@ func run(port int) {
 
 	err = server.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
+		slog.Error("server closed unexpectedly")
 		panic(err)
 	}
 
@@ -104,8 +109,10 @@ func service() http.Handler {
 func createDir() error {
 	err := os.Mkdir(sessDir, 0o750)
 	if err != nil && !errors.Is(err, fs.ErrExist) {
+		slog.Error(fmt.Sprintf(`Directory "%s" could not be created`, sessDir))
 		return err
 	}
 
+	slog.Debug(fmt.Sprintf(`Directory "%s" created or found`, sessDir))
 	return nil
 }

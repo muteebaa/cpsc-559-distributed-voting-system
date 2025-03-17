@@ -13,6 +13,7 @@ import (
 	"regexp"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/httplog/v2"
 )
 
 type Session struct {
@@ -53,16 +54,19 @@ func (id *SessId) UnmarshalJSON(data []byte) error {
 }
 
 func getSingleSession(w http.ResponseWriter, r *http.Request) {
+	logger := httplog.LogEntry(r.Context())
 	sessId := chi.URLParam(r, "sess")
 	_, err := os.Stat(sessId)
 	if err != nil && errors.Is(err, fs.ErrNotExist) {
+		logger.Debug(fmt.Sprintf("Session %s could not be located", sessId))
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
 
 	d, err := os.ReadFile(sessId)
 	if err != nil {
-		http.Error(w, "File could not be read", http.StatusInternalServerError)
+		logger.Error(fmt.Sprintf("Session %s could not be read from", sessId))
+		http.Error(w, "Session file could not be read", http.StatusInternalServerError)
 		return
 	}
 
@@ -72,8 +76,10 @@ func getSingleSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAllSessionInfo(w http.ResponseWriter, r *http.Request) {
+	logger := httplog.LogEntry(r.Context())
 	sessions, err := findSessionFiles(sessDir)
 	if err != nil {
+		logger.Error("Failed to read session directory info")
 		http.Error(w, "Failed to retrieve sessions", http.StatusInternalServerError)
 		return
 	}
@@ -86,8 +92,10 @@ func getAllSessionInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAllSessions(w http.ResponseWriter, r *http.Request) {
+	logger := httplog.LogEntry(r.Context())
 	files, err := filepath.Glob("*.json")
 	if err != nil {
+		logger.Error("Failed to read session directory info")
 		http.Error(w, "Failed to read sessions", http.StatusInternalServerError)
 		return
 	}
@@ -97,6 +105,7 @@ func getAllSessions(w http.ResponseWriter, r *http.Request) {
 		data, err := os.Open(file)
 		if err != nil {
 			// FIXME: Handle error
+			logger.Warn(fmt.Sprintf(`Session file "%s" could not be read`, file))
 			continue
 		}
 		defer data.Close()
@@ -105,6 +114,7 @@ func getAllSessions(w http.ResponseWriter, r *http.Request) {
 		var session Session
 		if err := dec.Decode(&session); err != nil {
 			// FIXME: Handle error
+			logger.Warn(fmt.Sprintf(`Session file "%s" could not be decoded`, file))
 			continue
 		}
 
@@ -140,15 +150,18 @@ func findSessionFiles(dir string) ([]string, error) {
 }
 
 func addSession(w http.ResponseWriter, r *http.Request) {
+	logger := httplog.LogEntry(r.Context())
 	var s Session
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&s); err != nil {
+		logger.Error("Session metadata could not be decoded")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if s.Host == "" || s.Ip == nil || s.Options == nil {
+		logger.Error("Invalid session metadata received")
 		http.Error(w, "Missing required fields", http.StatusBadRequest)
 		return
 	}
@@ -159,11 +172,13 @@ func addSession(w http.ResponseWriter, r *http.Request) {
 	filepath := fmt.Sprintf("%s.json", s.Id)
 	d, err := json.Marshal(s)
 	if err != nil {
+		logger.Error("Session metadata could not be encoded to JSON")
 		http.Error(w, "Failed to marshal JSON", http.StatusInternalServerError)
 		return
 	}
 
 	if err = os.WriteFile(filepath, d, 0o644); err != nil {
+		logger.Error(fmt.Sprintf(`Session file "%s" could not be written to`, filepath))
 		http.Error(w, "Failed to write file", http.StatusInternalServerError)
 		return
 	}
