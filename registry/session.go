@@ -18,10 +18,10 @@ import (
 )
 
 type Session struct {
-	Id      SessId
-	Host    string
-	Ip      net.IP
-	Options []string
+	Id      SessId   `json:"id"`
+	Host    string   `json:"host"`
+	Ip      net.IP   `json:"ip"`
+	Options []string `json:"options"`
 }
 
 type SessId string
@@ -88,7 +88,7 @@ func getAllSessionInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	resp := map[string][]string{"Sessions": sessions}
+	resp := map[string][]string{"sessions": sessions}
 	json.NewEncoder(w).Encode(resp)
 }
 
@@ -188,6 +188,6 @@ func addSession(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	resp := map[string]string{"Id": string(newId)}
+	resp := map[string]string{"id": string(newId)}
 	json.NewEncoder(w).Encode(resp)
 }
