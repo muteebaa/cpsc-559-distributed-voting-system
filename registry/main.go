@@ -20,14 +20,39 @@ const sessDir = "session"
 
 func main() {
 	port := flag.Int("port", 12020, "Port number the server should listen on")
+	rawlogLvl := flag.Int("level", 2, "Minimum level of logs to output (0 -> 3)")
+
 	flag.Parse()
 
+	var logLvl slog.Level
+	switch *rawlogLvl {
+	case 0:
+		logLvl = slog.LevelError
+	case 1:
+		logLvl = slog.LevelWarn
+	case 2:
+		logLvl = slog.LevelInfo
+	case 3:
+		logLvl = slog.LevelDebug
+	default:
+		logLvl = slog.LevelInfo
+	}
+
+	logger := slog.New(
+		slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.Level(logLvl)}),
+	)
+	slog.SetDefault(logger)
+
+	run(*port)
+}
+
+func run(port int) {
 	err := createDir()
 	if err != nil {
 		panic(err)
 	}
 
-	server := &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", *port), Handler: service()}
+	server := &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", port), Handler: service()}
 	serverCtx, serverStopCtx := context.WithCancel(context.Background())
 
 	sig := make(chan os.Signal, 1)
