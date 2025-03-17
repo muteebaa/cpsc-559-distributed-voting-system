@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/httplog/v2"
 )
 
 const sessDir = "session"
@@ -43,16 +44,21 @@ func main() {
 	)
 	slog.SetDefault(logger)
 
-	run(*port)
+	httplogOpts := httplog.Options{
+		LogLevel:       logLvl,
+		Concise:        true,
+	}
+
+	run(*port, httplogOpts)
 }
 
-func run(port int) {
+func run(port int, logOpts httplog.Options) {
 	err := createDir()
 	if err != nil {
 		panic(err)
 	}
 
-	server := &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", port), Handler: service()}
+	server := &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", port), Handler: service(logOpts)}
 	serverCtx, serverStopCtx := context.WithCancel(context.Background())
 
 	sig := make(chan os.Signal, 1)
@@ -92,10 +98,12 @@ func run(port int) {
 	<-serverCtx.Done()
 }
 
-func service() http.Handler {
+func service(logOpts httplog.Options) http.Handler {
 	r := chi.NewRouter()
 
-	r.Use(middleware.Logger)
+	logger := httplog.NewLogger("registry", logOpts)
+
+	r.Use(httplog.RequestLogger(logger))
 	r.Use(middleware.StripSlashes)
 	r.Use(middleware.AllowContentType("application/json"))
 
