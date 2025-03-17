@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -23,7 +27,44 @@ func main() {
 		panic(err)
 	}
 
+	server := &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", *port), Handler: service()}
+	serverCtx, serverStopCtx := context.WithCancel(context.Background())
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-sig
+
+		shutdownCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go func() {
+			<-shutdownCtx.Done()
+			if shutdownCtx.Err() == context.DeadlineExceeded {
+				slog.Error("graceful shutdown timed out... forcing exit")
+			}
+		}()
+
+		err := server.Shutdown(shutdownCtx)
+		if err != nil {
+			panic(err)
+		}
+
+		serverStopCtx()
+	}()
+
+	err = server.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed {
+		panic(err)
+	}
+
+	<-serverCtx.Done()
+}
+
+func service() http.Handler {
 	r := chi.NewRouter()
+
 	r.Use(middleware.Logger)
 	r.Use(middleware.AllowContentType("application/json"))
 
@@ -32,10 +73,7 @@ func main() {
 	r.Post("/sessions", addSession)
 	r.Get("/sessions/all", getAllSessionInfo)
 
-	err = http.ListenAndServe(fmt.Sprintf(":%d", *port), r)
-	if err != nil {
-		panic(err)
-	}
+	return r
 }
 
 func createDir() error {
