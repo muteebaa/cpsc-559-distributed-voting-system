@@ -6,6 +6,7 @@ import com.google.gson.reflect.TypeToken;
 import java.io.*;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpRequest.Builder;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpRequest.BodyPublishers;
@@ -23,13 +24,12 @@ public class SessionRegistry {
      */
     public static void saveSession(String sessionCode, String host, int port, String options) {
         // FIXME: Handle port number properly
-        Session session = new Session(host, "https://127.0.0.1:" + port, Arrays.asList(options.split(",")));
+        Session session = new Session(host, Integer.toString(port), Arrays.asList(options.split(",")));
         Gson gson = new Gson();
 
         HttpClient client = HttpClient.newHttpClient();
-        HttpRequest req = HttpRequest.newBuilder(URI.create("https://127.0.0.1:12020/sessions/"))
+        HttpRequest req = buildRegistryReq("/sessions")
                 .POST(BodyPublishers.ofString(gson.toJson(session)))
-                .header("Content-Type", "application/json")
                 .build();
 
         HttpResponse<String> resp;
@@ -52,9 +52,7 @@ public class SessionRegistry {
         Map<String, String> sessions = new HashMap<>();
 
         HttpClient client = HttpClient.newHttpClient();
-        HttpRequest req = HttpRequest.newBuilder(URI.create("https://127.0.0.1:12020/sessions"))
-                .header("Content-Type", "application/json")
-                .build();
+        HttpRequest req = buildRegistryReq("/sessions").build();
 
         HttpResponse<String> resp;
         try {
@@ -87,9 +85,7 @@ public class SessionRegistry {
      */
     public static void displayAvailableSessions() {
         HttpClient client = HttpClient.newHttpClient();
-        HttpRequest req = HttpRequest.newBuilder(URI.create("https://127.0.0.1:12020/sessions/all"))
-                .header("Content-Type", "application/json")
-                .build();
+        HttpRequest req = buildRegistryReq("/sessions/all").build();
 
         HttpResponse<String> resp;
         try {
@@ -118,9 +114,7 @@ public class SessionRegistry {
 
     public static List<String> getVotingOptions(String sessionCode) {
         HttpClient client = HttpClient.newHttpClient();
-        HttpRequest req = HttpRequest.newBuilder(URI.create("https://127.0.0.1:12020/sessions/" + sessionCode))
-                .header("Content-Type", "application/json")
-                .build();
+        HttpRequest req = buildRegistryReq("/sessions" + sessionCode).build();
 
         HttpResponse<String> resp;
         try {
@@ -137,5 +131,12 @@ public class SessionRegistry {
         Gson gson = new Gson();
         Session session = gson.fromJson(resp.body(), Session.class);
         return session.options;
+    }
+
+    private static Builder buildRegistryReq(String path) {
+        String registryAddr = "https://127.0.0.1:12020";
+        URI uri = URI.create(registryAddr + path);
+        return HttpRequest.newBuilder(uri)
+                .header("Content-Type", "application/json");
     }
 }
