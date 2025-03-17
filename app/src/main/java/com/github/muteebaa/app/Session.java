@@ -33,4 +33,9 @@ public class Session {
     public void setId(String id) {
         this.id = id;
     }
+
+    @Override
+    public String toString() {
+        return String.format("[%s @ %s:%d] Options: %s", id, host, port, options);
+    }
 }
