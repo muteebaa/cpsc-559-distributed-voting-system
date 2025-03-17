@@ -96,6 +96,7 @@ func service() http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logger)
+	r.Use(middleware.StripSlashes)
 	r.Use(middleware.AllowContentType("application/json"))
 
 	r.Get(fmt.Sprintf("/sessions/{sess:%s}", sessIdRegex), getSingleSession)
