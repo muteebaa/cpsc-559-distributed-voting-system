@@ -1,3 +1,5 @@
+package com.github.muteebaa.app;
+
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -15,7 +17,7 @@ public class NodeCommunication {
 
     /**
      * Starts a server to listen for incoming peer connections.
-     * 
+     *
      * @param port    The port to listen on.
      * @param handler A callback to handle received messages.
      */
@@ -34,7 +36,7 @@ public class NodeCommunication {
 
     /**
      * Establishes a connection to another node.
-     * 
+     *
      * @param host The hostname or IP address.
      * @param port The port number.
      */
@@ -48,7 +50,7 @@ public class NodeCommunication {
 
     /**
      * Sends a message through the specified socket.
-     * 
+     *
      * @param message The message to send.
      * @param socket  The socket to send through.
      */
@@ -61,8 +63,19 @@ public class NodeCommunication {
     }
 
     /**
+     * Updates the peer address list and broadcasts the update.
+     *
+     * @param peer   The peer's address.
+     * @param peerId The peer's unique identifier.
+     */
+    public void updatePeerNodeAddresses(String peer, int peerId) {
+        peerAddresses.put(peer, peerId);
+        broadcastMessage("NEW PEER !!: " + String.join(",", getPeerAddresses()), getPeerAddresses());
+    }
+
+    /**
      * Handles an incoming message from a peer.
-     * 
+     *
      * @param socket The socket receiving the message.
      */
     private void handleIncomingMessage(Socket socket) {
@@ -80,7 +93,7 @@ public class NodeCommunication {
 
     /**
      * Processes incoming messages such as peer registration and votes.
-     * 
+     *
      * @param message The received message.
      */
     private void processMessage(String message) {
@@ -96,7 +109,7 @@ public class NodeCommunication {
 
     /**
      * Updates the vote tally with a new vote.
-     * 
+     *
      * @param vote The vote received.
      */
     public void updateVoteTally(String vote) {
@@ -105,7 +118,7 @@ public class NodeCommunication {
 
     /**
      * Broadcasts a message to all known peers, excluding the sender.
-     * 
+     *
      * @param message       The message to broadcast.
      * @param peerAddresses The list of peer addresses.
      */
@@ -125,8 +138,17 @@ public class NodeCommunication {
     }
 
     /**
+     * Retrieves a list of known peer addresses.
+     *
+     * @return A list of peer addresses.
+     */
+    public List<String> getPeerAddresses() {
+        return new ArrayList<>(peerAddresses.keySet());
+    }
+
+    /**
      * Retrieves the current vote tally.
-     * 
+     *
      * @return A map of votes and their counts.
      */
     public Map<String, Integer> getVoteTally() {
@@ -135,7 +157,7 @@ public class NodeCommunication {
 
     /**
      * Gets the client socket instance.
-     * 
+     *
      * @return The client socket.
      */
     public Socket getClientSocket() {
