@@ -39,9 +39,11 @@ public class SessionRegistry {
         } catch (InterruptedException e) {
             // FIXME: Ignored exception
             return;
+            e.printStackTrace();
         } catch (IOException e) {
             // FIXME: Ignored exception
             return;
+            e.printStackTrace();
         }
     }
 
@@ -60,9 +62,11 @@ public class SessionRegistry {
             resp = client.send(req, BodyHandlers.ofString());
         } catch (InterruptedException e) {
             // FIXME: Ignored exception
+            e.printStackTrace();
             return sessions;
         } catch (IOException e) {
             // FIXME: Ignored exception
+            e.printStackTrace();
             return sessions;
         }
 
@@ -93,9 +97,11 @@ public class SessionRegistry {
             resp = client.send(req, BodyHandlers.ofString());
         } catch (InterruptedException e) {
             // FIXME: Ignored exception
+            e.printStackTrace();
             return;
         } catch (IOException e) {
             // FIXME: Ignored exception
+            e.printStackTrace();
             return;
         }
 
@@ -122,9 +128,11 @@ public class SessionRegistry {
             resp = client.send(req, BodyHandlers.ofString());
         } catch (InterruptedException e) {
             // FIXME: Ignored exception
+            e.printStackTrace();
             return new ArrayList<>();
         } catch (IOException e) {
             // FIXME: Ignored exception
+            e.printStackTrace();
             return new ArrayList<>();
         }
 
