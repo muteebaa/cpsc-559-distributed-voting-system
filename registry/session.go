@@ -100,7 +100,7 @@ func getAllSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var sessions []Session
+	sessions := make([]Session, 0)
 	for _, file := range files {
 		data, err := os.Open(file)
 		if err != nil {
@@ -127,7 +127,7 @@ func getAllSessions(w http.ResponseWriter, r *http.Request) {
 }
 
 func findSessionFiles(dir string) ([]string, error) {
-	var files []string
+	files := make([]string, 0)
 	f, err := os.Open(dir)
 	if err != nil {
 		return files, err
