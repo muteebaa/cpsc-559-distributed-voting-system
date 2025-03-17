@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/httplog/v2"
@@ -56,14 +57,14 @@ func (id *SessId) UnmarshalJSON(data []byte) error {
 func getSingleSession(w http.ResponseWriter, r *http.Request) {
 	logger := httplog.LogEntry(r.Context())
 	sessId := chi.URLParam(r, "sess")
-	_, err := os.Stat(sessId)
+	_, err := os.Stat(fmt.Sprintf("%s/%s.json", sessDir, sessId))
 	if err != nil && errors.Is(err, fs.ErrNotExist) {
 		logger.Debug(fmt.Sprintf("Session %s could not be located", sessId))
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
 
-	d, err := os.ReadFile(sessId)
+	d, err := os.ReadFile(fmt.Sprintf("%s/%s.json", sessDir, sessId))
 	if err != nil {
 		logger.Error(fmt.Sprintf("Session %s could not be read from", sessId))
 		http.Error(w, "Session file could not be read", http.StatusInternalServerError)
@@ -93,7 +94,7 @@ func getAllSessionInfo(w http.ResponseWriter, r *http.Request) {
 
 func getAllSessions(w http.ResponseWriter, r *http.Request) {
 	logger := httplog.LogEntry(r.Context())
-	files, err := filepath.Glob("*.json")
+	files, err := filepath.Glob(sessDir + "/*.json")
 	if err != nil {
 		logger.Error("Failed to read session directory info")
 		http.Error(w, "Failed to read sessions", http.StatusInternalServerError)
@@ -139,10 +140,11 @@ func findSessionFiles(dir string) ([]string, error) {
 		return files, err
 	}
 
-	idValidator := regexp.MustCompile(sessIdRegex)
+	validRegex := strings.TrimSuffix(sessIdRegex, "$") + `\.json$`
+	idValidator := regexp.MustCompile(validRegex)
 	for _, file := range fileInfo {
 		if idValidator.MatchString(file) {
-			files = append(files, file)
+			files = append(files, strings.TrimSuffix(file, ".json"))
 		}
 	}
 
@@ -169,7 +171,7 @@ func addSession(w http.ResponseWriter, r *http.Request) {
 	newId := genId()
 	s.Id = newId
 
-	filepath := fmt.Sprintf("%s.json", s.Id)
+	filepath := fmt.Sprintf("%s/%s.json", sessDir, s.Id)
 	d, err := json.Marshal(s)
 	if err != nil {
 		logger.Error("Session metadata could not be encoded to JSON")
