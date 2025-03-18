@@ -247,19 +247,4 @@ public class PeerNode {
             }
         }
     }
-
-    /**
-     * Generates a random 6-character session code.
-     *
-     * @return A randomly generated session code.
-     */
-    private String generateRandomCode() {
-        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        Random random = new Random();
-        StringBuilder code = new StringBuilder();
-        for (int i = 0; i < 6; i++) {
-            code.append(chars.charAt(random.nextInt(chars.length())));
-        }
-        return code.toString();
-    }
 }
