@@ -210,6 +210,7 @@ public class PeerNode {
      * Ends the voting process and broadcasts results.
      */
     public void endVoting() {
+        SessionRegistry.removeSession(sessionCode);
         String results = "VOTING_ENDED:Thanks for voting! Voting results: " + voteTally;
         System.out.println(results.substring(13));
         nodeComm.broadcastMessage(results, peerNodes);

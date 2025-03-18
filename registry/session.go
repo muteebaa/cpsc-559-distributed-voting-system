@@ -221,3 +221,17 @@ func addSession(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(newId)
 }
+
+func deleteSession(w http.ResponseWriter, r *http.Request) {
+	logger := httplog.LogEntry(r.Context())
+	sessId := chi.URLParam(r, "sess")
+	filepath := getSessPath(sessId)
+	if err := os.Remove(filepath); err != nil {
+		logger.Warn("Could not remove session: " + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	logger.Debug(fmt.Sprintf("Removed session %s at %s", sessId, filepath))
+	w.WriteHeader(http.StatusOK)
+}

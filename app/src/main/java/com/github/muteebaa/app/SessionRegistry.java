@@ -28,7 +28,7 @@ public class SessionRegistry {
         Gson gson = new Gson();
 
         HttpClient client = HttpClient.newHttpClient();
-        HttpRequest req = buildRegistryReq("/sessions")
+        HttpRequest req = buildRegistryReqJson("/sessions")
                 .POST(BodyPublishers.ofString(gson.toJson(session)))
                 .build();
 
@@ -56,7 +56,7 @@ public class SessionRegistry {
         Map<String, String> sessions = new HashMap<>();
 
         HttpClient client = HttpClient.newHttpClient();
-        HttpRequest req = buildRegistryReq("/sessions").build();
+        HttpRequest req = buildRegistryReqJson("/sessions").build();
 
         HttpResponse<String> resp;
         try {
@@ -91,7 +91,7 @@ public class SessionRegistry {
      */
     public static void displayAvailableSessions() {
         HttpClient client = HttpClient.newHttpClient();
-        HttpRequest req = buildRegistryReq("/sessions").build();
+        HttpRequest req = buildRegistryReqJson("/sessions").build();
 
         HttpResponse<String> resp;
         try {
@@ -122,7 +122,7 @@ public class SessionRegistry {
 
     public static List<String> getVotingOptions(String sessionCode) {
         HttpClient client = HttpClient.newHttpClient();
-        HttpRequest req = buildRegistryReq("/sessions/" + sessionCode).build();
+        HttpRequest req = buildRegistryReqJson("/sessions/" + sessionCode).build();
 
         HttpResponse<String> resp;
         try {
@@ -143,7 +143,30 @@ public class SessionRegistry {
         return session.options;
     }
 
+    public static void removeSession(String sessionCode) {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest req = buildRegistryReq("/sessions/" + sessionCode).build();
+
+        try {
+            // TODO: Handle failing status codes
+            client.send(req, BodyHandlers.ofString());
+        } catch (InterruptedException e) {
+            // FIXME: Ignored exception
+            e.printStackTrace();
+        } catch (IOException e) {
+            // FIXME: Ignored exception
+            e.printStackTrace();
+        }
+    }
+
     private static Builder buildRegistryReq(String path) {
+        String registryAddr = "http://127.0.0.1:12020";
+        URI uri = URI.create(registryAddr + path);
+        return HttpRequest.newBuilder(uri)
+                .header("Content-Type", "application/json");
+    }
+
+    private static Builder buildRegistryReqJson(String path) {
         String registryAddr = "http://127.0.0.1:12020";
         URI uri = URI.create(registryAddr + path);
         return HttpRequest.newBuilder(uri)

@@ -115,8 +115,11 @@ func service(logOpts httplog.Options) http.Handler {
 
 	// Specifying API endpoints
 	r.Get(fmt.Sprintf("/sessions/{sess:%s}", sessIdRegex), getSingleSession)
+	r.Delete(fmt.Sprintf("/sessions/{sess:%s}", sessIdRegex), deleteSession)
+
 	r.Get("/sessions", getAllSessions)
 	r.Post("/sessions", addSession)
+
 	r.Get("/sessions/all", getAllSessionInfo)
 
 	return r
