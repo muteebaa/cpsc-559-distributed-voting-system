@@ -42,6 +42,10 @@ func genId() SessId {
 	return SessId(id)
 }
 
+func getSessPath(id string) string {
+	return fmt.Sprintf("%s/%s.json", sessDir, id)
+}
+
 // Validates that the [Session] ID is a 6 character upper-alphanumeric string
 // when parsing a session object from JSON. Returns an error if it does not
 func (id *SessId) UnmarshalJSON(data []byte) error {
@@ -64,14 +68,14 @@ func (id *SessId) UnmarshalJSON(data []byte) error {
 func getSingleSession(w http.ResponseWriter, r *http.Request) {
 	logger := httplog.LogEntry(r.Context())
 	sessId := chi.URLParam(r, "sess")
-	_, err := os.Stat(fmt.Sprintf("%s/%s.json", sessDir, sessId))
+	_, err := os.Stat(getSessPath(sessId))
 	if err != nil && errors.Is(err, fs.ErrNotExist) {
 		logger.Debug(fmt.Sprintf("Session %s could not be located", sessId))
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
 
-	d, err := os.ReadFile(fmt.Sprintf("%s/%s.json", sessDir, sessId))
+	d, err := os.ReadFile(getSessPath(sessId))
 	if err != nil {
 		logger.Error(fmt.Sprintf("Session %s could not be read from", sessId))
 		http.Error(w, "Session file could not be read", http.StatusInternalServerError)
@@ -197,7 +201,7 @@ func addSession(w http.ResponseWriter, r *http.Request) {
 	newId := genId()
 	s.Id = newId
 
-	filepath := fmt.Sprintf("%s/%s.json", sessDir, s.Id)
+	filepath := getSessPath(string(s.Id))
 	d, err := json.Marshal(s)
 	if err != nil {
 		logger.Error("Session metadata could not be encoded to JSON")
