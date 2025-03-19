@@ -19,6 +19,7 @@ import (
 
 const sessDir = "session"
 
+// Handles basic configuration for the rest of the program
 func main() {
 	port := flag.Int("port", 12020, "Port number the server should listen on")
 	rawlogLvl := flag.Int("level", 2, "Minimum level of logs to output (0 -> 3)")
@@ -45,13 +46,15 @@ func main() {
 	slog.SetDefault(logger)
 
 	httplogOpts := httplog.Options{
-		LogLevel:       logLvl,
-		Concise:        true,
+		LogLevel: logLvl,
+		Concise:  true,
 	}
 
 	run(*port, httplogOpts)
 }
 
+// Begin running the HTTP server, ensuring that shutdowns may be handled
+// gracefully
 func run(port int, logOpts httplog.Options) {
 	err := createDir()
 	if err != nil {
@@ -62,6 +65,7 @@ func run(port int, logOpts httplog.Options) {
 	serverCtx, serverStopCtx := context.WithCancel(context.Background())
 
 	sig := make(chan os.Signal, 1)
+	// Catch SIGINT (kill -2) and SIGTERM (kill -15) for safe handling
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 
 	slog.Info("server startup initiated")
@@ -98,15 +102,18 @@ func run(port int, logOpts httplog.Options) {
 	<-serverCtx.Done()
 }
 
+// Configures the HTTP router
 func service(logOpts httplog.Options) http.Handler {
 	r := chi.NewRouter()
 
 	logger := httplog.NewLogger("registry", logOpts)
 
+	// Add some middleware processing on every request
 	r.Use(httplog.RequestLogger(logger))
 	r.Use(middleware.StripSlashes)
 	r.Use(middleware.AllowContentType("application/json"))
 
+	// Specifying API endpoints
 	r.Get(fmt.Sprintf("/sessions/{sess:%s}", sessIdRegex), getSingleSession)
 	r.Get("/sessions", getAllSessions)
 	r.Post("/sessions", addSession)

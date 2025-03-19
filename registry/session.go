@@ -17,15 +17,18 @@ import (
 	"github.com/go-chi/httplog/v2"
 )
 
+// Represents the information for an ongoing session. Can be marshalled to/from
+// JSON
 type Session struct {
-	Id      SessId   `json:"id"`
-	Host    net.IP   `json:"host"`
-	Port    int      `json:"port"`
-	Options []string `json:"options"`
+	Id      SessId   `json:"id"`      // 6 character upper-alphanumeric string
+	Host    net.IP   `json:"host"`    // IP of the leader node
+	Port    int      `json:"port"`    // IP the leader node is broadcasting on
+	Options []string `json:"options"` // Options for the ongoing election
 }
 
 type SessId string
 
+// Validating regex for a session ID
 const sessIdRegex = `^[A-Z0-9]{6}$`
 
 // TODO: Find out if session ids need to more random
@@ -39,6 +42,8 @@ func genId() SessId {
 	return SessId(id)
 }
 
+// Validates that the [Session] ID is a 6 character upper-alphanumeric string
+// when parsing a session object from JSON. Returns an error if it does not
 func (id *SessId) UnmarshalJSON(data []byte) error {
 	var rawId string
 	if err := json.Unmarshal(data, &rawId); err != nil {
@@ -54,6 +59,8 @@ func (id *SessId) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Returns the [Session] information for a single session ID contained within
+// the URL
 func getSingleSession(w http.ResponseWriter, r *http.Request) {
 	logger := httplog.LogEntry(r.Context())
 	sessId := chi.URLParam(r, "sess")
@@ -76,6 +83,11 @@ func getSingleSession(w http.ResponseWriter, r *http.Request) {
 	w.Write(d)
 }
 
+// Returns the [Session] IDs for every ongoing session in a JSON object
+//
+// Example Response:
+//
+//	{"session":["ABC123","ABC124"]}
 func getAllSessionInfo(w http.ResponseWriter, r *http.Request) {
 	logger := httplog.LogEntry(r.Context())
 	sessions, err := findSessionFiles(sessDir)
@@ -92,6 +104,8 @@ func getAllSessionInfo(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
+// Returns the complete JSON-encoded information on every ongoing [Session] in a
+// JSON array
 func getAllSessions(w http.ResponseWriter, r *http.Request) {
 	logger := httplog.LogEntry(r.Context())
 	files, err := filepath.Glob(sessDir + "/*.json")
@@ -127,6 +141,7 @@ func getAllSessions(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(sessions)
 }
 
+// Find every ongoing session recorded within the database
 func findSessionFiles(dir string) ([]string, error) {
 	files := make([]string, 0)
 	f, err := os.Open(dir)
@@ -151,6 +166,17 @@ func findSessionFiles(dir string) ([]string, error) {
 	return files, nil
 }
 
+// Assign the requested session an ID and store it in the database. Expects a
+// JSON-encoded [Session] (the id is ignored if present) as a request and
+// returns the assigned ID as a JSON string as a response
+//
+// Example Session Request:
+//
+//	[{"Host":"hello","Ip":"127.0.0.1","Options":[]}]
+//
+// Example Response:
+//
+//	"ABC123"
 func addSession(w http.ResponseWriter, r *http.Request) {
 	logger := httplog.LogEntry(r.Context())
 	var s Session
