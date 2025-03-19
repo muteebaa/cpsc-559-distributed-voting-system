@@ -172,7 +172,7 @@ func findSessionFiles(dir string) ([]string, error) {
 //
 // Example Session Request:
 //
-//	[{"Host":"hello","Ip":"127.0.0.1","Options":[]}]
+//	[{"host":"127.0.0.1","ip":8080,"options":[]}]
 //
 // Example Response:
 //

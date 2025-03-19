@@ -27,7 +27,7 @@ single ongoing voting session.
 {
     "id": "ABC123", // 6 character upper alphanumeric session ID
     "host": "127.0.0.1", // IP address of the session's leader node
-    "port": "8080", // Port address the leader is broadcasting on
+    "port": 8080, // Port address the leader is broadcasting on
     "options": [
         // Voting options for the session
         "cat",
@@ -48,7 +48,7 @@ Returns the complete information about a single session
 {
     "id": "ABC123",
     "host": "127.0.0.1",
-    "port": "8080",
+    "port": 8080,
     "options": ["cat", "dog"]
 }
 ```
@@ -66,13 +66,13 @@ Returns the complete information on every ongoing session
     {
         "id": "ABC123",
         "host": "127.0.0.1",
-        "port": "8080",
+        "port": 8080,
         "options": ["cat", "dog"]
     },
     {
         "id": "ABC124",
         "host": "127.0.0.2",
-        "port": "8081",
+        "port": 8081,
         "options": ["cat", "horse"]
     }
 ]
@@ -105,9 +105,9 @@ the assigned session ID
 
 ```json
 {
-    "Host": "127.0.0.1",
-    "Port": "8080",
-    "Options": ["cat", "dog"]
+    "host": "127.0.0.1",
+    "port": 8080,
+    "options": ["cat", "dog"]
 }
 ```
 
