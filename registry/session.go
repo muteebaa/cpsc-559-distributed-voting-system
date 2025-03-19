@@ -231,6 +231,9 @@ func addSession(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(newId)
 }
 
+// Updates the requested [Session] (ID in URL) with the new leader nodes
+// (potentially partial) information. That is, only the Host and Port may be
+// updated for a session
 func updateSession(w http.ResponseWriter, r *http.Request) {
 	logger := httplog.LogEntry(r.Context())
 	var s1 Session
