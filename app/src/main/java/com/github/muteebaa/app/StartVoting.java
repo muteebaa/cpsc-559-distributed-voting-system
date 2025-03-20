@@ -56,12 +56,19 @@ public class StartVoting {
         Map<String, String> sessions = SessionRegistry.loadSessions();
 
         if (sessions.containsKey(sessionCode)) {
+            /// get the session entry
+            String sessionDetails = sessions.get(sessionCode);
+            // everything before the first comma in sessionDetails
+            String leaderAddress = sessionDetails.split(",")[0];
+            System.out.print(leaderAddress);
+
             System.out.print("Enter your node's port number: ");
             int myPort = scanner.nextInt();
 
             PeerNode peer = new PeerNode(myPort, 1);
             peer.setSessionCode(sessionCode);
             peer.startPeer();
+            peer.setLeader(leaderAddress);
 
             System.out.println("Waiting for leader to start voting...");
         } else {
