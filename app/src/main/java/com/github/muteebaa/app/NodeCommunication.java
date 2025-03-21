@@ -25,6 +25,7 @@ public class NodeCommunication {
         this.messageHandler = handler;
         try {
             serverSocket = new ServerSocket(port);
+            // System.out.println("server started!");
             while (true) {
                 Socket socket = serverSocket.accept();
                 new Thread(() -> handleIncomingMessage(socket)).start(); // Run message handling on a new thread
@@ -111,7 +112,7 @@ public class NodeCommunication {
      * @param message       The message to broadcast.
      * @param peerAddresses The list of peer addresses.
      */
-    public void broadcastMessage(String message, List<String> peerAddresses) {
+    public void broadcastMessage(String message, Collection<String> peerAddresses) {
         for (String peer : peerAddresses) {
             String[] parts = peer.split(":");
             String host = parts[0];

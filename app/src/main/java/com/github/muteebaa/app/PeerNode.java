@@ -1,5 +1,7 @@
 package com.github.muteebaa.app;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 
 /**
@@ -11,12 +13,14 @@ public class PeerNode {
     private final NodeCommunication nodeComm;
     private final int port;
     private final int nodeId; // will be used in leader election
-    private final List<String> peerNodes; // each peer will have a list of other peers
+    private final Map<Number, String> peerNodes; // each peer will have a list of other peers
     private Map<String, Integer> voteTally;
     private boolean leaderToken;
     private String leaderAddress;
     private String sessionCode;
     private boolean acknowledgment = false;
+
+    private boolean running = false; // wether or not this node is running in the election
 
     /**
      * Initializes a new PeerNode instance.
@@ -28,7 +32,8 @@ public class PeerNode {
         this.nodeComm = new NodeCommunication();
         this.port = port;
         this.nodeId = nodeId;
-        this.peerNodes = new ArrayList<>();
+        this.peerNodes = new HashMap<Number, String>();
+        this.voteTally = new HashMap<>();
     }
 
     public void setSessionCode(String sessionCode) {
@@ -42,16 +47,41 @@ public class PeerNode {
         new Thread(() -> nodeComm.startServer(port, this::handleMessage)).start();
     }
 
+    public String getMyIp() {
+        try {
+            // Get the local host (your machine's IP address)
+            String myIp = InetAddress.getLocalHost().getHostAddress();
+            System.out.println("My IP Address: " + myIp);
+
+            return myIp;
+        } catch (UnknownHostException e) {
+            System.err.println("Could not determine IP address: " + e.getMessage());
+        }
+        return null;
+    }
+
     /**
      * Registers this peer with the leader node.
      *
      * @param leaderAddress The leader node's address in the format "host:port".
      */
     public synchronized void registerWithLeader(String leaderAddress) {
+        // System.out.print("\n\nregistering with leader\n\n");
         this.acknowledgment = false;
-        this.leaderAddress = leaderAddress;
-        String registrationMessage = "REGISTER:localhost:" + port;
-        nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]));
+
+        String leaderIp = leaderAddress.split(":")[0];
+        int leaderPort = Integer.parseInt(leaderAddress.split(":")[1]);
+
+        // System.out.print(leaderIp);
+        // System.out.print(leaderPort);
+
+        String myIp = getMyIp();
+
+        String registrationMessage = "REGISTER:" + myIp + ":" + port;
+
+        // System.out.print("\n\n" + registrationMessage + "\n\n");
+
+        nodeComm.connectToNode(leaderIp, leaderPort);
         nodeComm.sendMessage(registrationMessage, nodeComm.getClientSocket());
 
         // Wait for acknowledgment from the leader
@@ -63,7 +93,8 @@ public class PeerNode {
             }
         }
 
-        voteTally = new HashMap<>();
+        setLeader(leaderAddress);
+
         // TODO: Handle leader's response
     }
 
@@ -75,29 +106,40 @@ public class PeerNode {
     public void handleMessage(String message) {
         if (message.startsWith("REGISTER:")) {
             String peer = message.substring(9);
-            peerNodes.add(peer);
-            nodeComm.broadcastMessage("UPDATE_NEW_PEER:" + peerNodes, peerNodes);
+
+            // leader should set the id of the new peer, we will start with 1
+            // get the highest id in the peerNodes map (Map<Number, String> peerNodes)
+            // Get the highest key in the peerNodes map
+            int highestCurrentId = peerNodes.keySet().stream()
+                    .mapToInt(Number::intValue) // Convert Number to int
+                    .max() // Get the maximum value
+                    .orElse(0); // Default value if the map is empty
+
+            int newId = highestCurrentId + 1;
+
+            peerNodes.put(newId, peer);
+
+            nodeComm.broadcastMessage("UPDATE_NEW_PEER:" + peer + "," + newId, peerNodes.values());
+
             System.out.println("My peer list: " + peerNodes);
+
             nodeComm.connectToNode(peer.split(":")[0], Integer.parseInt(peer.split(":")[1]));
             nodeComm.sendMessage("ACK: You are successfully registered.", nodeComm.getClientSocket());
+
+            // also send UPDATE_NEW_PEER with leaders ip and id
+            nodeComm.connectToNode(peer.split(":")[0], Integer.parseInt(peer.split(":")[1]));
+            nodeComm.sendMessage("UPDATE_NEW_PEER:" + leaderAddress + "," + this.nodeId, nodeComm.getClientSocket());
+
         } else if (message.startsWith("UPDATE_NEW_PEER:")) {
             System.out.println("My peer list before update: " + peerNodes);
             // Extract the peer list from the message
-            String peerListString = message.substring("UPDATE_NEW_PEER:".length()).trim();
+            String newPeerIpAndId = message.substring("UPDATE_NEW_PEER:".length()).trim();
 
             // Remove the square brackets [ ] if present
-            peerListString = peerListString.substring(1, peerListString.length() - 1);
+            String newPeerIp = newPeerIpAndId.split(",")[0];
+            int newPeerId = Integer.parseInt(newPeerIpAndId.split(",")[1]);
 
-            // Split the peers by ", " and add them to the peerNodes list
-            List<String> newPeers = Arrays.asList(peerListString.split(", "));
-
-            // Add only new peers that are not already in peerNodes
-            for (String peer : newPeers) {
-                if (!peerNodes.contains(peer)) {
-                    peerNodes.add(peer);
-                }
-            }
-
+            peerNodes.put(newPeerId, newPeerIp);
             System.out.println("Updated peer list: " + peerNodes);
         } else if (message.startsWith("ACK:")) {
             synchronized (this) {
@@ -112,7 +154,7 @@ public class PeerNode {
             String vote = parts[3];
             updateVoteTally(vote);
             if (leaderToken) {
-                nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + vote, peerNodes);
+                nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + vote, peerNodes.values());
                 nodeComm.connectToNode(host, port);
                 nodeComm.sendMessage("ACK: Your vote was successfully counted.", nodeComm.getClientSocket());
             }
@@ -132,7 +174,6 @@ public class PeerNode {
      */
     public void setLeader(String leaderAddress) {
         this.leaderAddress = leaderAddress;
-        registerWithLeader(leaderAddress);
     }
 
     public boolean hasLeaderToken() {
@@ -180,7 +221,7 @@ public class PeerNode {
         // System.out.println("starting voting");
         // System.out.println("peer nodes: " + nodeComm.getPeerAddresses());
         nodeComm.broadcastMessage("START_VOTING:" + voteTally.keySet(),
-                peerNodes);
+                peerNodes.values());
 
     }
 
@@ -208,7 +249,7 @@ public class PeerNode {
     public void endVoting() {
         String results = "VOTING_ENDED:Thanks for voting! Voting results: " + voteTally;
         System.out.println(results.substring(13));
-        nodeComm.broadcastMessage(results, peerNodes);
+        nodeComm.broadcastMessage(results, peerNodes.values());
     }
 
     /**
@@ -219,8 +260,9 @@ public class PeerNode {
      * @param options The available voting options.
      * @return The generated session code.
      */
-    public String startNewSession(String ip, int port, String options) {
-        String sessionCode = SessionRegistry.saveSession(ip, port, options);
+    public String startNewSession(String options) {
+        String myIp = getMyIp();
+        String sessionCode = SessionRegistry.saveSession(myIp, this.port, options);
         for (String option : options.split(",")) {
             voteTally.put(option.trim(), 0);
         }
@@ -242,5 +284,19 @@ public class PeerNode {
                 System.out.println("Code: " + entry.getKey() + " | Details: " + entry.getValue());
             }
         }
+    }
+
+    // Initiate_Election(int i) /* process Pi */
+    public void initiateElection(int nodeID) {
+        // runningi = true /* I am running in this elections */
+        running = true;
+
+        // if i is the highest id
+        // then
+        // send leader(i) to all Pj, where j ≠ i else
+        // send election(i) to all Pj, where j > i
+        // /* check if there are bigger guys out there */
+        // wait for T time units
+
     }
 }

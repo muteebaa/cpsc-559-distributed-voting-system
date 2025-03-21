@@ -35,12 +35,13 @@ public class StartVoting {
 
         PeerNode peer = new PeerNode(myPort, 1);
         peer.startPeer();
+        peer.registerWithLeader(peer.getMyIp() + ":" + myPort); // adds us to the peerNodes list, and give us an id
 
         System.out.print("Enter comma-separated voting options: ");
         String options = scanner.nextLine();
 
         // Generate session code and store it
-        String sessionCode = peer.startNewSession("192.168.1.100", myPort, options); // Replace with actual IP
+        String sessionCode = peer.startNewSession(options);
         System.out.println("\nSession created! Share this code: " + sessionCode);
         System.out.println("Voting options: " + options);
 
@@ -60,7 +61,6 @@ public class StartVoting {
             String sessionDetails = sessions.get(sessionCode);
             // everything before the first comma in sessionDetails
             String leaderAddress = sessionDetails.split(",")[0];
-            System.out.print(leaderAddress);
 
             System.out.print("Enter your node's port number: ");
             int myPort = scanner.nextInt();
@@ -68,7 +68,7 @@ public class StartVoting {
             PeerNode peer = new PeerNode(myPort, 1);
             peer.setSessionCode(sessionCode);
             peer.startPeer();
-            peer.setLeader(leaderAddress);
+            peer.registerWithLeader(leaderAddress);
 
             System.out.println("Waiting for leader to start voting...");
         } else {
