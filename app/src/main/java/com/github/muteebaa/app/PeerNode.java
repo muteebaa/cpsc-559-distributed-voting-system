@@ -1,6 +1,14 @@
 package com.github.muteebaa.app;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.*;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 /**
  * Represents a peer node in a distributed voting system.
@@ -17,6 +25,8 @@ public class PeerNode {
     private String leaderAddress;
     private String sessionCode;
     private boolean acknowledgment = false;
+    private String uuid;
+    private ConcurrentSkipListSet<String> uuidSet;
 
     /**
      * Initializes a new PeerNode instance.
@@ -29,6 +39,77 @@ public class PeerNode {
         this.port = port;
         this.nodeId = nodeId;
         this.peerNodes = new ArrayList<>();
+        this.uuid = loadUUID();
+        this.uuidSet = new ConcurrentSkipListSet<>();
+    }
+
+    private static String getSystemUUID(){
+        String uuid = null;
+        try {
+            // For Linux
+            if (System.getProperty("os.name").toLowerCase().contains("linux")) {
+                Process process = Runtime.getRuntime().exec("cat /sys/class/dmi/id/product_uuid");
+                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                uuid = reader.readLine();
+            }
+            // For Windows
+            else if (System.getProperty("os.name").toLowerCase().contains("win")) {
+                Process process = Runtime.getRuntime().exec("wmic computersystem get UUID");
+                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                reader.readLine(); // Skip the header
+                uuid = reader.readLine().trim();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return uuid;
+    }
+
+    private static UUID generateUUID(){
+        String systemUUID = getSystemUUID();
+        if (systemUUID != null) {
+            return UUID.nameUUIDFromBytes(systemUUID.getBytes());
+        }
+        return null;
+    }
+
+    private static boolean saveUUID(UUID uuid){
+        String filePath = System.getProperty("user.home") + File.separator + ".uuid" + File.separator + "uuid.txt";
+        try {
+            File file = new File(filePath);
+            file.getParentFile().mkdirs();
+            BufferedWriter writer = new BufferedWriter(new FileWriter(file));
+            writer.write(uuid.toString());
+            writer.close();
+            file.setReadOnly();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+    }
+
+    private static String loadUUID(){
+        //  This UUID is based in the location "user.home"/.uuid/uuid.txt
+        String filePath = System.getProperty("user.home") + File.separator + ".uuid" + File.separator + "uuid.txt";
+        File file = new File(filePath);
+        if (!file.exists()) {
+            saveUUID(generateUUID());
+        }
+        file = new File(filePath);
+        StringBuilder content = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                content.append(line).append(System.lineSeparator());
+            }
+            if (content.length() == 0) {
+                return null;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return content.toString();   
     }
 
     public void setSessionCode(String sessionCode) {
