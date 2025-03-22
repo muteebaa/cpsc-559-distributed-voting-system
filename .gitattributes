@@ -1,0 +1,10 @@
+# https://help.github.com/articles/dealing-with-line-endings/
+
+# UNIX systems assume LF (\n) line-endings
+/gradlew        text eol=lf
+
+# Windows filesystems assume CRLF (\r\n) file endings
+*.bat           text eol=crlf
+
+# Leave binary files alone
+*.jar           binary

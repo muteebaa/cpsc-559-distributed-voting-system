@@ -1,3 +1,5 @@
+package com.github.muteebaa.app;
+
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -10,13 +12,12 @@ import java.util.function.Consumer;
 public class NodeCommunication {
     private ServerSocket serverSocket;
     private Socket clientSocket;
-    private final Map<String, Integer> peerAddresses = new HashMap<>();
     private final Map<String, Integer> voteTally = new HashMap<>();
     private Consumer<String> messageHandler; // Callback function for message handling
 
     /**
      * Starts a server to listen for incoming peer connections.
-     * 
+     *
      * @param port    The port to listen on.
      * @param handler A callback to handle received messages.
      */
@@ -26,7 +27,7 @@ public class NodeCommunication {
             serverSocket = new ServerSocket(port);
             while (true) {
                 Socket socket = serverSocket.accept();
-                handleIncomingMessage(socket);
+                new Thread(() -> handleIncomingMessage(socket)).start(); // Run message handling on a new thread
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -35,7 +36,7 @@ public class NodeCommunication {
 
     /**
      * Establishes a connection to another node.
-     * 
+     *
      * @param host The hostname or IP address.
      * @param port The port number.
      */
@@ -49,7 +50,7 @@ public class NodeCommunication {
 
     /**
      * Sends a message through the specified socket.
-     * 
+     *
      * @param message The message to send.
      * @param socket  The socket to send through.
      */
@@ -57,24 +58,13 @@ public class NodeCommunication {
         try (PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
             out.println(message);
         } catch (IOException e) {
-            e.printStackTrace();
+            e.printStackTrace(); // Print the full exception stack trace
         }
     }
 
     /**
-     * Updates the peer address list and broadcasts the update.
-     * 
-     * @param peer   The peer's address.
-     * @param peerId The peer's unique identifier.
-     */
-    public void updatePeerNodeAddresses(String peer, int peerId) {
-        peerAddresses.put(peer, peerId);
-        broadcastMessage("NEW PEER !!: " + String.join(",", getPeerAddresses()), getPeerAddresses());
-    }
-
-    /**
      * Handles an incoming message from a peer.
-     * 
+     *
      * @param socket The socket receiving the message.
      */
     private void handleIncomingMessage(Socket socket) {
@@ -92,14 +82,13 @@ public class NodeCommunication {
 
     /**
      * Processes incoming messages such as peer registration and votes.
-     * 
+     *
      * @param message The received message.
      */
     private void processMessage(String message) {
         if (message.startsWith("REGISTER:")) {
             String peer = message.substring(9, message.length() - 1);
             int peerId = Integer.parseInt(message.substring(message.length() - 1));
-            updatePeerNodeAddresses(peer, peerId);
         } else if (message.startsWith("VOTE:")) {
             updateVoteTally(message.substring(5));
         } else {
@@ -109,7 +98,7 @@ public class NodeCommunication {
 
     /**
      * Updates the vote tally with a new vote.
-     * 
+     *
      * @param vote The vote received.
      */
     public void updateVoteTally(String vote) {
@@ -118,7 +107,7 @@ public class NodeCommunication {
 
     /**
      * Broadcasts a message to all known peers, excluding the sender.
-     * 
+     *
      * @param message       The message to broadcast.
      * @param peerAddresses The list of peer addresses.
      */
@@ -138,17 +127,8 @@ public class NodeCommunication {
     }
 
     /**
-     * Retrieves a list of known peer addresses.
-     * 
-     * @return A list of peer addresses.
-     */
-    public List<String> getPeerAddresses() {
-        return new ArrayList<>(peerAddresses.keySet());
-    }
-
-    /**
      * Retrieves the current vote tally.
-     * 
+     *
      * @return A map of votes and their counts.
      */
     public Map<String, Integer> getVoteTally() {
@@ -157,7 +137,7 @@ public class NodeCommunication {
 
     /**
      * Gets the client socket instance.
-     * 
+     *
      * @return The client socket.
      */
     public Socket getClientSocket() {
