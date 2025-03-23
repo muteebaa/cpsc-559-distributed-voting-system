@@ -237,21 +237,22 @@ public class PeerNode {
                 this.uuidSet.add(incomingUUID);
                 updateVoteTally(vote);
                 if (leaderToken) {                               
-                    nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + vote, peerNodes);    
+                    nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + incomingUUID + ":" + vote, peerNodes);    
                     nodeComm.connectToNode(host, port);
                     nodeComm.sendMessage("ACK: Your vote was successfully counted.", nodeComm.getClientSocket());
                 }    
             }
             else{
                 nodeComm.connectToNode(host, port);
-                nodeComm.sendMessage("DENY: A vote has already been cast with your UUID.", nodeComm.getClientSocket());
+                nodeComm.sendMessage("DUPLICATE: A vote has already been cast with your UUID.", nodeComm.getClientSocket());
             }
                    
-        }else if(message.startsWith("DENY:")){
-
+        }else if(message.startsWith("DUPLICATE:")){
+            System.out.println("A duplicate vote was detected with your UUID. The most recent vote was not submitted.");
         }
         else if (message.startsWith("UPDATE_VOTE_TALLY:")) {
-            String vote = message.substring(18).trim();
+            String incomingUUID = message.substring(18, 54);
+            String vote = message.substring(54).trim();
             updateVoteTally(vote);
         }
         else if (message.startsWith("START_VOTING")) {
@@ -262,6 +263,11 @@ public class PeerNode {
         }
     }
 
+
+    public boolean updateUUID(String uuid) {
+        boolean succcess = uuidSet.add(uuid);
+        return succcess;
+    }
     /**
      * Determines the leader node. (Currently hardcoded)
      */
@@ -327,7 +333,7 @@ public class PeerNode {
         if (scanner.hasNextLine()) {
             String vote = scanner.nextLine();
             sendVoteToLeader(vote);
-            System.out.println("Vote submitted: " + vote);
+            // System.out.println("Vote submitted: " + vote);
             if (!leaderToken) {
                 System.out.println("We will let you know when voting ends.");
             }
