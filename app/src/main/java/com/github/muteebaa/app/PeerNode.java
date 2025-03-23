@@ -195,13 +195,26 @@ public class PeerNode {
             String host = parts[1]; 
             int port = Integer.parseInt(parts[2]); 
             String vote = parts[3];
-            updateVoteTally(vote);
-            if (leaderToken) {                               
-                nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + vote, peerNodes);    
+            // Adding section for handling the UUID
+            String incomingUUID = parts[4];
+            if (!(this.uuidSet.contains(incomingUUID))) {
+                this.uuidSet.add(incomingUUID);
+                updateVoteTally(vote);
+                if (leaderToken) {                               
+                    nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + vote, peerNodes);    
+                    nodeComm.connectToNode(host, port);
+                    nodeComm.sendMessage("ACK: Your vote was successfully counted.", nodeComm.getClientSocket());
+                }    
+            }
+            else{
                 nodeComm.connectToNode(host, port);
-                nodeComm.sendMessage("ACK: Your vote was successfully counted.", nodeComm.getClientSocket());
-            }           
-        }else if (message.startsWith("UPDATE_VOTE_TALLY:")) {
+                nodeComm.sendMessage("DENY: A vote has already been cast with your UUID.", nodeComm.getClientSocket());
+            }
+                   
+        }else if(message.startsWith("DENY:")){
+            
+        }
+        else if (message.startsWith("UPDATE_VOTE_TALLY:")) {
             String vote = message.substring(18).trim();
             updateVoteTally(vote);
         }
@@ -247,7 +260,7 @@ public class PeerNode {
     public synchronized void sendVoteToLeader(String vote) {       
         this.acknowledgment = false;
         nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]));
-        nodeComm.sendMessage("VOTE:localhost:" + this.port + ":" + vote, nodeComm.getClientSocket());
+        nodeComm.sendMessage("VOTE:localhost:" + this.port + ":" + vote + ":" + this.uuid, nodeComm.getClientSocket());
         // Wait for acknowledgment from the leader
         while (!acknowledgment) {
             try {
