@@ -35,13 +35,14 @@ public class StartVoting {
 
         PeerNode peer = new PeerNode(myPort);
         peer.startPeer();
-        peer.registerWithLeader(peer.getMyIp() + ":" + myPort); // adds us to the peerNodes list, and give us an id
 
         System.out.print("Enter comma-separated voting options: ");
         String options = scanner.nextLine();
 
         // Generate session code and store it
         String sessionCode = peer.startNewSession(options);
+        peer.registerWithLeader(peer.getMyIp() + ":" + myPort); // adds us to the peerNodes list, and give us an id
+
         System.out.println("\nSession created! Share this code: " + sessionCode);
         System.out.println("Voting options: " + options);
 
