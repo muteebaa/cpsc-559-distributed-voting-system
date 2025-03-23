@@ -31,9 +31,9 @@ public class StartVoting {
         System.out.println("\nStarting a new election!");
         System.out.print("Enter your node's port number: ");
         int myPort = scanner.nextInt();
-        scanner.nextLine(); // Consume newline
+        scanner.nextLine(); // Consume newlines
 
-        PeerNode peer = new PeerNode(myPort, 1);
+        PeerNode peer = new PeerNode(myPort);
         peer.startPeer();
         peer.registerWithLeader(peer.getMyIp() + ":" + myPort); // adds us to the peerNodes list, and give us an id
 
@@ -65,12 +65,25 @@ public class StartVoting {
             System.out.print("Enter your node's port number: ");
             int myPort = scanner.nextInt();
 
-            PeerNode peer = new PeerNode(myPort, 1);
+            PeerNode peer = new PeerNode(myPort);
             peer.setSessionCode(sessionCode);
             peer.startPeer();
             peer.registerWithLeader(leaderAddress);
 
             System.out.println("Waiting for leader to start voting...");
+
+            System.out.println("or start fake leader election!");
+
+            int choice = scanner.nextInt();
+            scanner.nextLine(); // Consume newline
+
+            switch (choice) {
+                case 1:
+                    peer.initiateElection();
+                    break;
+                default:
+                    System.out.println("Invalid choice. Please enter 1.");
+            }
         } else {
             System.out.println("Invalid session code!");
         }
