@@ -46,8 +46,7 @@ public class StartVoting {
         System.out.println("\nSession created! Share this code: " + sessionCode);
         System.out.println("Voting options: " + options);
 
-        waitForLeaderToStartVoting(peer);
-        waitForLeaderToEndVoting(peer);
+        leaderNeedsToStartVoting(peer); // TTL
     }
 
     private static void joinExistingElection() {
@@ -65,6 +64,7 @@ public class StartVoting {
 
             System.out.print("Enter your node's port number: ");
             int myPort = scanner.nextInt();
+            scanner.nextLine(); // Consume newlines
 
             PeerNode peer = new PeerNode(myPort);
             peer.setSessionCode(sessionCode);
@@ -75,22 +75,22 @@ public class StartVoting {
 
             System.out.println("or start fake leader election!");
 
-            int choice = scanner.nextInt();
-            scanner.nextLine(); // Consume newline
+            // int choice = scanner.nextInt();
+            // scanner.nextLine(); // Consume newline
 
-            switch (choice) {
-                case 1:
-                    peer.initiateElection();
-                    break;
-                default:
-                    System.out.println("Invalid choice. Please enter 1.");
-            }
+            // switch (choice) {
+            // case 1:
+            // peer.initiateElection();
+            // break;
+            // default:
+            // System.out.println("Invalid choice. Please enter 1.");
+            // }
         } else {
             System.out.println("Invalid session code!");
         }
     }
 
-    private static void waitForLeaderToStartVoting(PeerNode peer) {
+    private static void leaderNeedsToStartVoting(PeerNode peer) {
         while (true) {
             System.out.print("Enter 'start' to begin voting: ");
             String input = scanner.nextLine().trim().toLowerCase();
@@ -101,19 +101,6 @@ public class StartVoting {
                 break;
             }
             System.out.println("Invalid input. Type 'start' to begin.");
-        }
-    }
-
-    private static void waitForLeaderToEndVoting(PeerNode peer) {
-        while (true) {
-            System.out.print("Enter 'end' to stop voting: ");
-            String input = scanner.nextLine().trim().toLowerCase();
-
-            if (input.equals("end")) {
-                peer.endVoting();
-                break;
-            }
-            System.out.println("Invalid input. Type 'end' to end voting.");
         }
     }
 }

@@ -57,7 +57,7 @@ public class PeerNode {
     private void startHeartbeat() {
         new Thread(() -> {
             while (this.hasLeaderToken()) { // Only send if I'm the leader
-                System.out.println("Sending heartbeat...");
+                // System.out.println("Sending heartbeat...");
                 nodeComm.broadcastMessage("HEARTBEAT", peerNodes.values());
                 try {
                     Thread.sleep(3000); // Send every 3 seconds
@@ -70,7 +70,7 @@ public class PeerNode {
 
     private void startHeartbeatMonitor() {
         new Thread(() -> {
-            while (!this.hasLeaderToken()) { // Only monitor if I'm not the leader
+            while (!this.hasLeaderToken() && !this.running) { // Only monitor if I'm not the leader
                 try {
                     Thread.sleep(5000); // Check every 5 seconds
                 } catch (InterruptedException e) {
@@ -132,7 +132,7 @@ public class PeerNode {
             }
         }
 
-        setLeader(leaderAddress);
+        changeLeader(leaderAddress);
 
         if (!hasLeaderToken()) {
             this.startHeartbeatMonitor();
@@ -146,6 +146,7 @@ public class PeerNode {
      * @param message The received message.
      */
     public void handleMessage(String message) {
+
         if (message.startsWith("REGISTER:")) {
             String peer = message.substring(9);
 
@@ -175,7 +176,7 @@ public class PeerNode {
         }
 
         else if (message.equals("HEARTBEAT")) {
-            System.out.println("Heartbeat received.");
+            // System.out.println("Heartbeat received.");
             lastHeartbeatTime = System.currentTimeMillis(); // Reset timer
         } else if (message.startsWith("UPDATE_NEW_PEER:")) {
             System.out.println("New peer message received: " + message);
@@ -235,7 +236,7 @@ public class PeerNode {
             String vote = message.substring(18).trim();
             updateVoteTally(vote);
         } else if (message.startsWith("START_VOTING")) {
-            promptForVote();
+            new Thread(this::promptForVote).start();
         } else if (message.startsWith("VOTING_ENDED:")) {
             System.out.println();
             System.out.println(message.substring(13));
@@ -249,11 +250,15 @@ public class PeerNode {
                 String nodesAddress = this.peerNodes.get(idOfNodeRunning);
                 String nodeIp = nodesAddress.split(":")[0];
                 int nodePort = Integer.parseInt(nodesAddress.split(":")[1]);
+
                 System.out.println("Bullying node " + idOfNodeRunning + " at " + nodeIp + ":" + nodePort);
                 nodeComm.connectToNode(nodeIp, nodePort);
                 nodeComm.sendMessage("BULLY", nodeComm.getClientSocket());
 
-                this.initiateElection();
+                // am i already the leader?
+                if (!this.hasLeaderToken()) {
+                    this.initiateElection();
+                }
 
                 // // get list of ids bigger than mine
                 // Map<Number, String> biggerIds = peerNodes.entrySet().stream()
@@ -277,16 +282,23 @@ public class PeerNode {
 
         } else if (message.startsWith("LEADER:")) {
             System.out.println("Leader message received: " + message);
-            String newLeaderAddress = message.substring(7);
+            String newLeadersId = message.substring(7);
 
-            setLeader(newLeaderAddress);
+            String newLeaderIp = peerNodes.get(Integer.parseInt(newLeadersId));
+
+            changeLeader(newLeaderIp);
         }
     }
 
     /**
      * Determines the leader node. (Currently hardcoded)
      */
-    public void setLeader(String leaderAddress) {
+    public void changeLeader(String leaderAddress) {
+        System.out.println("leader address: " + leaderAddress);
+
+        // remove peer with leader address from peerNodes
+        peerNodes.values().removeIf(value -> value.equals(this.leaderAddress));
+
         this.leaderAddress = leaderAddress;
     }
 
@@ -294,8 +306,14 @@ public class PeerNode {
         return leaderToken;
     }
 
-    public void setLeaderToken(boolean leaderToken) {
-        this.leaderToken = leaderToken;
+    public void setLeaderToken() {
+        this.leaderToken = true;
+        // set leader address to my address
+        this.leaderAddress = getMyIp() + ":" + this.port;
+
+        System.out.println("Leader token set.");
+        System.out.println(leaderAddress);
+
     }
 
     /**
@@ -315,6 +333,8 @@ public class PeerNode {
      * @param vote The vote being submitted.
      */
     public synchronized void sendVoteToLeader(String vote) {
+        System.out.println("leader address: " + leaderAddress);
+
         this.acknowledgment = false;
         nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]));
         nodeComm.sendMessage("VOTE:localhost:" + this.port + ":" + vote, nodeComm.getClientSocket());
@@ -346,14 +366,32 @@ public class PeerNode {
 
         System.out.print("Enter your vote: ");
         if (scanner.hasNextLine()) {
+            System.out.println("got vote!!!!");
             String vote = scanner.nextLine();
+            System.out.println(vote);
+
             sendVoteToLeader(vote);
             System.out.println("Vote submitted: " + vote);
             if (!leaderToken) {
                 System.out.println("We will let you know when voting ends.");
+            } else {
+                this.waitForEndVoting();
             }
         } else {
             System.out.println("Input stream closed. Cannot receive votes.");
+        }
+    }
+
+    private void waitForEndVoting() {
+        while (true) {
+            System.out.print("Enter 'end' to stop voting: ");
+            String input = scanner.nextLine().trim().toLowerCase();
+
+            if (input.equals("end")) {
+                this.endVoting();
+                break;
+            }
+            System.out.println("Invalid input. Type 'end' to end voting.");
         }
     }
 
@@ -381,7 +419,7 @@ public class PeerNode {
             voteTally.put(option.trim(), 0);
         }
         this.sessionCode = sessionCode;
-        setLeaderToken(true); // Leader token is initially with the session creator
+        setLeaderToken(); // Leader token is initially with the session creator
         this.startHeartbeat();
         return sessionCode;
     }
@@ -407,6 +445,7 @@ public class PeerNode {
         // remove peer with leader address from peerNodes
         peerNodes.values().removeIf(value -> value.equals(leaderAddress));
         this.leaderAddress = null;
+
         // runningi = true /* I am running in this elections */
         this.running = true;
 
@@ -423,7 +462,10 @@ public class PeerNode {
             // then
             // send leader(i) to all Pj, where j ≠ i else
             System.out.println("Sending leader message to all peers: " + peerNodes.values());
+            setLeaderToken();
+
             nodeComm.broadcastMessage("LEADER:" + this.nodeId, peerNodes.values());
+            this.startHeartbeat();
         } else {
             // get list of ids bigger than mine
             Map<Number, String> biggerIds = peerNodes.entrySet().stream()
@@ -456,8 +498,9 @@ public class PeerNode {
                 // No response → Declare self as leader
                 if (this.running && !hasLeaderToken()) {
                     System.out.println("Node " + nodeId + " received no response. Declaring myself as leader.");
-                    setLeaderToken(true);
+                    setLeaderToken();
                     nodeComm.broadcastMessage("LEADER:" + getMyIp() + "," + this.port, peerNodes.values());
+                    this.startHeartbeat();
                 }
             }
             // while (!this.bullied) {
