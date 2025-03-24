@@ -25,6 +25,7 @@ public class PeerNode {
     private boolean running = false; // wether or not this node is running in the election
     // private boolean bullied = false;
     private volatile boolean bullied = false;// wether or not this node has been bullied
+    private String voteBuffer = null;
 
     private static final int TIMEOUT = 5000; // T time units in milliseconds
     private static final int WAIT_TIME = 3000; // T' time units
@@ -300,6 +301,13 @@ public class PeerNode {
         peerNodes.values().removeIf(value -> value.equals(this.leaderAddress));
 
         this.leaderAddress = leaderAddress;
+
+        // check buffer
+        if (voteBuffer != null) {
+            // send buffer to leader
+            sendVoteToLeader(voteBuffer);
+            voteBuffer = null;
+        }
     }
 
     public boolean hasLeaderToken() {
@@ -336,15 +344,30 @@ public class PeerNode {
         System.out.println("leader address: " + leaderAddress);
 
         this.acknowledgment = false;
-        nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]));
-        nodeComm.sendMessage("VOTE:localhost:" + this.port + ":" + vote, nodeComm.getClientSocket());
-        // Wait for acknowledgment from the leader
-        while (!acknowledgment) {
-            try {
-                wait(); // Correct usage inside synchronized block
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+
+        if (nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]))) {
+            nodeComm.sendMessage("VOTE:localhost:" + this.port + ":" + vote, nodeComm.getClientSocket());
+
+            // Wait for acknowledgment from the leader
+            while (!acknowledgment) {
+                try {
+                    wait();
+                } catch (InterruptedException e) {
+                    // e.printStackTrace();
+
+                    // add vote to buffer
+                    voteBuffer = vote;
+
+                    // initiate election
+                    this.initiateElection();
+                }
             }
+        } else {
+            // add vote to buffer
+            voteBuffer = vote;
+
+            // initiate election
+            this.initiateElection();
         }
     }
 

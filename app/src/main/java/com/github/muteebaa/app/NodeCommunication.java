@@ -41,12 +41,15 @@ public class NodeCommunication {
      * @param host The hostname or IP address.
      * @param port The port number.
      */
-    public void connectToNode(String host, int port) {
+    public boolean connectToNode(String host, int port) {
         try {
             clientSocket = new Socket(host, port);
         } catch (IOException e) {
-            e.printStackTrace();
+            // e.printStackTrace();
+            return false;
         }
+
+        return true;
     }
 
     /**
