@@ -19,9 +19,6 @@ import java.util.List;
 import java.util.Map;
 
 public class SessionRegistry {
-    /**
-     * Saves a session code to a file.
-     */
     public static String saveSession(String host, int port, String options) {
         // FIXME: Handle port number properly
         Session session = new Session(host, port, Arrays.asList(options.split(",")));
@@ -49,9 +46,6 @@ public class SessionRegistry {
         return gson.fromJson(resp.body(), String.class);
     }
 
-    /**
-     * Loads all session codes from the file.
-     */
     public static Map<String, String> loadSessions() {
         Map<String, String> sessions = new HashMap<>();
 
@@ -86,9 +80,6 @@ public class SessionRegistry {
         return sessions;
     }
 
-    /**
-     * Gets available session codes from the file.
-     */
     public static void displayAvailableSessions() {
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest req = buildRegistryReq("/sessions").build();
