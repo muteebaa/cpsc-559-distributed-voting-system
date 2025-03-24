@@ -10,6 +10,17 @@ import java.util.stream.Collectors;
  * Handles communication, voting, and peer registration.
  */
 public class PeerNode {
+    // ANSI color codes for console output
+    public static final String ANSI_RESET = "\u001B[0m";
+    public static final String ANSI_BLACK = "\u001B[30m";
+    public static final String ANSI_RED = "\u001B[31m";
+    public static final String ANSI_GREEN = "\u001B[32m";
+    public static final String ANSI_YELLOW = "\u001B[33m";
+    public static final String ANSI_BLUE = "\u001B[34m";
+    public static final String ANSI_PURPLE = "\u001B[35m";
+    public static final String ANSI_CYAN = "\u001B[36m";
+    public static final String ANSI_WHITE = "\u001B[37m";
+
     private static final Scanner scanner = new Scanner(System.in);
     private final NodeCommunication nodeComm;
     private final int port;
@@ -60,7 +71,7 @@ public class PeerNode {
             while (true) {
                 // Only send if I'm the leader
                 if (this.hasLeaderToken()) {
-                    System.out.println("Sending heartbeat...");
+                    System.out.println(ANSI_RED + "Sending heartbeat..." + ANSI_RESET);
                     nodeComm.broadcastMessage("HEARTBEAT", peerNodes.values());
                     try {
                         Thread.sleep(3000); // Send every 3 seconds
@@ -186,7 +197,7 @@ public class PeerNode {
         }
 
         else if (message.equals("HEARTBEAT")) {
-            System.out.println("Heartbeat received.");
+            System.out.println(ANSI_RED + "Heartbeat received." + ANSI_RESET);
             lastHeartbeatTime = System.currentTimeMillis(); // Reset timer
         } else if (message.startsWith("UPDATE_NEW_PEER:")) {
             System.out.println("New peer message received: " + message);
@@ -404,10 +415,15 @@ public class PeerNode {
 
             sendVoteToLeader(vote);
             System.out.println("Vote submitted: " + vote);
-            if (!leaderToken) {
+            if (!this.leaderToken) {
                 System.out.println("We will let you know when voting ends.");
-            } else {
-                this.waitForEndVoting();
+            }
+            while (true) {
+                // if i ever get the leader token, i will end the voting
+                if (this.leaderToken) {
+                    this.waitForEndVoting();
+                    return;
+                }
             }
         } else {
             System.out.println("Input stream closed. Cannot receive votes.");
