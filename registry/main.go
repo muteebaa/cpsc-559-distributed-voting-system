@@ -109,8 +109,9 @@ func service(logOpts httplog.Options) http.Handler {
 	logger := httplog.NewLogger("registry", logOpts)
 
 	// Add some middleware processing on every request
-	r.Use(httplog.RequestLogger(logger))
+	r.Use(httplog.RequestLogger(logger, []string{"/ping"}))
 	r.Use(middleware.StripSlashes)
+	r.Use(middleware.Heartbeat("/ping"))
 	r.Use(middleware.AllowContentType("application/json"))
 
 	// Specifying API endpoints
