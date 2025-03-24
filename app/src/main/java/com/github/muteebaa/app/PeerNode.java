@@ -275,6 +275,10 @@ public class PeerNode {
         leaderAddress = "localhost:5000";
     }
 
+    public String getLeaderAddress() {
+        return leaderAddress;
+    }
+
     public boolean hasLeaderToken() {
         return leaderToken;
     }

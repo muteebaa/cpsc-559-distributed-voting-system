@@ -2,9 +2,15 @@ package com.github.muteebaa.app;
 
 import java.util.Map;
 import java.util.Scanner;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 public class StartVoting {
     private static final Scanner scanner = new Scanner(System.in);
+    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private static ScheduledFuture<?> beatHandle;
 
     public static void main(String[] args) {
         System.out.println("1. Start a new election\n2. Join an existing election\n3. View available sessions");
@@ -70,6 +76,9 @@ public class StartVoting {
     }
 
     private static void waitForLeaderToStartVoting(PeerNode peer) {
+        Runnable heartbeat = new SessionHeartbeat(peer);
+        beatHandle = scheduler.scheduleAtFixedRate(heartbeat, 10, 10, TimeUnit.SECONDS);
+
         while (true) {
             System.out.print("Enter 'start' to begin voting: ");
             String input = scanner.nextLine().trim().toLowerCase();

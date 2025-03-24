@@ -4,12 +4,16 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.*;
+import java.net.InetAddress;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest.Builder;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpRequest.BodyPublishers;
+import java.net.http.HttpResponse.BodyHandler;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -22,15 +26,21 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 public class SessionRegistry {
+    public static PeerNode peerNode;
+    // FIXME: Hack to persist options list
+    public static String _options;
+
     private static HttpClient client = HttpClient.newHttpClient();
     private static final List<String> registryServers = List.of(
             "http://127.0.0.1:12020",
-            "http://127.0.0.1:12021");
+            "http://127.0.0.1:12021",
+            "http://127.0.0.1:12022");
 
     private static String currRegistry = registryServers.get(0);
 
     public static String saveSession(String host, int port, String options) {
         // FIXME: Handle port number properly
+        _options = options;
         Session session = new Session(host, port, Arrays.asList(options.split(",")));
         Gson gson = new Gson();
 
@@ -38,21 +48,35 @@ public class SessionRegistry {
                 .POST(BodyPublishers.ofString(gson.toJson(session)))
                 .build();
 
-        HttpResponse<String> resp;
+        String sessionId;
         try {
             // TODO: Handle failing status codes
-            resp = client.send(req, BodyHandlers.ofString());
-        } catch (InterruptedException e) {
-            // FIXME: Ignored exception
-            e.printStackTrace();
-            return "";
-        } catch (IOException e) {
+            HttpResponse<String> resp = sendWithRetry(req, BodyHandlers.ofString());
+            sessionId = resp.body();
+        } catch (InterruptedException | IOException e) {
             // FIXME: Ignored exception
             e.printStackTrace();
             return "";
         }
 
-        return gson.fromJson(resp.body(), String.class);
+        return gson.fromJson(sessionId, String.class);
+    }
+
+    public static String saveSession(String address, String options) {
+        String host = address.split(":")[0];
+        // IP must be resolved client-side since server could be contacting different
+        // DNS server
+        InetAddress hostIp;
+
+        try {
+            hostIp = InetAddress.getByName(host);
+        } catch (UnknownHostException ignored) {
+            // Should be unreachable, unable to confirm
+            throw new RuntimeException("FIXME: I have made an incorrect assumption");
+        }
+
+        Integer port = Integer.parseInt(address.split(":")[1]);
+        return saveSession(hostIp.getHostAddress(), port, options);
     }
 
     public static Map<String, String> loadSessions() {
@@ -62,12 +86,8 @@ public class SessionRegistry {
         HttpResponse<String> resp;
         try {
             // TODO: Handle failing status codes
-            resp = client.send(req, BodyHandlers.ofString());
-        } catch (InterruptedException e) {
-            // FIXME: Ignored exception
-            e.printStackTrace();
-            return sessions;
-        } catch (IOException e) {
+            resp = sendWithRetry(req, BodyHandlers.ofString());
+        } catch (InterruptedException | IOException e) {
             // FIXME: Ignored exception
             e.printStackTrace();
             return sessions;
@@ -92,12 +112,8 @@ public class SessionRegistry {
         HttpResponse<String> resp;
         try {
             // TODO: Handle failing status codes
-            resp = client.send(req, BodyHandlers.ofString());
-        } catch (InterruptedException e) {
-            // FIXME: Ignored exception
-            e.printStackTrace();
-            return;
-        } catch (IOException e) {
+            resp = sendWithRetry(req, BodyHandlers.ofString());
+        } catch (InterruptedException | IOException e) {
             // FIXME: Ignored exception
             e.printStackTrace();
             return;
@@ -121,12 +137,8 @@ public class SessionRegistry {
         HttpResponse<String> resp;
         try {
             // TODO: Handle failing status codes
-            resp = client.send(req, BodyHandlers.ofString());
-        } catch (InterruptedException e) {
-            // FIXME: Ignored exception
-            e.printStackTrace();
-            return new ArrayList<>();
-        } catch (IOException e) {
+            resp = sendWithRetry(req, BodyHandlers.ofString());
+        } catch (InterruptedException | IOException e) {
             // FIXME: Ignored exception
             e.printStackTrace();
             return new ArrayList<>();
@@ -137,7 +149,68 @@ public class SessionRegistry {
         return session.options;
     }
 
-    private static void chooseRegistry() {
+    private static <T> HttpResponse<T> sendWithRetry(HttpRequest req, BodyHandler<T> handler)
+            throws InterruptedException, IOException {
+        int maxRetries = 3;
+        for (int i = 0; i < maxRetries; i++) {
+            try {
+                return client.send(req, handler);
+            } catch (InterruptedException | IOException ignored) {
+                // Ignored since registry should be swapped if server keeps 5xx-ing anyways
+            }
+        }
+
+        chooseRegistry();
+        try {
+            URI newUri = replaceHost(req.uri(), currRegistry);
+            // Creates new req w/ only URI changed
+            HttpRequest newReq = HttpRequest.newBuilder(req, (e1, e2) -> true)
+                    .uri(newUri)
+                    .build();
+
+            return sendWithRetry(newReq, handler);
+        } catch (URISyntaxException e) {
+            // NOTE: Unreachable unless the hardcoded URLs are wrong
+            e.printStackTrace();
+        }
+
+        // Unreachable
+        return null;
+    }
+
+    private static URI replaceHost(URI uri, String host) throws URISyntaxException {
+        // NOTE: Building a String rather than using URI constructors because hosts are
+        // hardcoded as scheme + authority. If that changes this can be made into a
+        // one-liner
+        String newUri = host + uri.getPath();
+
+        if (uri.getQuery() != null) {
+            newUri += uri.getQuery();
+        }
+
+        if (uri.getFragment() != null) {
+            newUri += uri.getFragment();
+        }
+
+        return URI.create(newUri);
+    }
+
+    public static boolean checkHealth() {
+        HttpRequest req = buildRegistryReq(currRegistry, "/ping").build();
+
+        try {
+            HttpResponse<Void> resp = client.send(req, HttpResponse.BodyHandlers.discarding());
+            if (resp.statusCode() != 200) {
+                return false;
+            }
+        } catch (InterruptedException | IOException e) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public static boolean chooseRegistry() {
         CompletableFuture<String> server = registryServers.stream()
                 // Asynchronously ping each server
                 .map(url -> {
@@ -152,13 +225,16 @@ public class SessionRegistry {
 
         try {
             String chosenServer = server.get();
-            if (chosenServer != null) {
+            if (chosenServer != null && !currRegistry.equals(chosenServer)) {
                 currRegistry = chosenServer;
+                return true;
             }
         } catch (InterruptedException | ExecutionException e) {
             // FIXME: Ignored exception
             e.printStackTrace();
         }
+
+        return false;
     }
 
     private static Builder buildRegistryReq(String path) {
