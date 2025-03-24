@@ -20,7 +20,7 @@ public class PeerNode {
     private String sessionCode;
     private boolean acknowledgment = false;
 
-    private boolean leaderToken;
+    private volatile boolean leaderToken;
     private long lastHeartbeatTime = System.currentTimeMillis(); // Track last heartbeat
     private boolean running = false; // wether or not this node is running in the election
     // private boolean bullied = false;
@@ -57,13 +57,16 @@ public class PeerNode {
 
     private void startHeartbeat() {
         new Thread(() -> {
-            while (this.hasLeaderToken()) { // Only send if I'm the leader
-                // System.out.println("Sending heartbeat...");
-                nodeComm.broadcastMessage("HEARTBEAT", peerNodes.values());
-                try {
-                    Thread.sleep(3000); // Send every 3 seconds
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
+            while (true) {
+                // Only send if I'm the leader
+                if (this.hasLeaderToken()) {
+                    System.out.println("Sending heartbeat...");
+                    nodeComm.broadcastMessage("HEARTBEAT", peerNodes.values());
+                    try {
+                        Thread.sleep(3000); // Send every 3 seconds
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
                 }
             }
         }).start();
@@ -71,17 +74,22 @@ public class PeerNode {
 
     private void startHeartbeatMonitor() {
         new Thread(() -> {
-            while (!this.hasLeaderToken() && !this.running) { // Only monitor if I'm not the leader
-                try {
-                    Thread.sleep(5000); // Check every 5 seconds
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+            while (true) {
+                // Only monitor if I'm not the leader and im not running in the leader election
+                if (!this.hasLeaderToken() && !this.running) {
+                    try {
+                        Thread.sleep(5000); // Check every 5 seconds
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
 
-                // If no heartbeat received for 10+ sec → Start election
-                if (System.currentTimeMillis() - lastHeartbeatTime > 10000) {
-                    System.out.println("No heartbeat received. Starting election.");
-                    initiateElection();
+                    // If no heartbeat received for 10+ sec → Start election
+                    if (System.currentTimeMillis() - lastHeartbeatTime > 10000) {
+                        System.out.println("No heartbeat received. Starting election if not running.");
+                        if (!this.running) {
+                            this.initiateElection();
+                        }
+                    }
                 }
             }
         }).start();
@@ -135,9 +143,10 @@ public class PeerNode {
 
         changeLeader(leaderAddress);
 
-        if (!hasLeaderToken()) {
-            this.startHeartbeatMonitor();
-        }
+        // start the heartbeat and monitor
+        this.startHeartbeat();
+        this.startHeartbeatMonitor();
+
         // TODO: Handle leader's response - do we need to?
     }
 
@@ -177,7 +186,7 @@ public class PeerNode {
         }
 
         else if (message.equals("HEARTBEAT")) {
-            // System.out.println("Heartbeat received.");
+            System.out.println("Heartbeat received.");
             lastHeartbeatTime = System.currentTimeMillis(); // Reset timer
         } else if (message.startsWith("UPDATE_NEW_PEER:")) {
             System.out.println("New peer message received: " + message);
@@ -443,7 +452,6 @@ public class PeerNode {
         }
         this.sessionCode = sessionCode;
         setLeaderToken(); // Leader token is initially with the session creator
-        this.startHeartbeat();
         return sessionCode;
     }
 
@@ -481,14 +489,13 @@ public class PeerNode {
 
         // if i is the highest id
         if (this.nodeId == highestCurrentId) {
+            setLeaderToken();
             System.out.println("Node " + nodeId + " is the highest id. Declaring myself as leader.");
             // then
             // send leader(i) to all Pj, where j ≠ i else
             System.out.println("Sending leader message to all peers: " + peerNodes.values());
-            setLeaderToken();
 
             nodeComm.broadcastMessage("LEADER:" + this.nodeId, peerNodes.values());
-            this.startHeartbeat();
         } else {
             // get list of ids bigger than mine
             Map<Number, String> biggerIds = peerNodes.entrySet().stream()
@@ -523,7 +530,6 @@ public class PeerNode {
                     System.out.println("Node " + nodeId + " received no response. Declaring myself as leader.");
                     setLeaderToken();
                     nodeComm.broadcastMessage("LEADER:" + getMyIp() + "," + this.port, peerNodes.values());
-                    this.startHeartbeat();
                 }
             }
             // while (!this.bullied) {
@@ -561,6 +567,7 @@ public class PeerNode {
             ////// leaderi = k
             ////// runningi = false /* leader elected */
 
+            this.running = false;
         }
 
     }
