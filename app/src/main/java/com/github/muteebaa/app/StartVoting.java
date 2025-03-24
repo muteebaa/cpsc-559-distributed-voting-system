@@ -2,6 +2,10 @@ package com.github.muteebaa.app;
 
 import java.util.Map;
 import java.util.Scanner;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 public class StartVoting {
     // ANSI color codes for console output
@@ -16,6 +20,8 @@ public class StartVoting {
     public static final String ANSI_WHITE = "\u001B[37m";
 
     private static final Scanner scanner = new Scanner(System.in);
+    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private static ScheduledFuture<?> beatHandle;
 
     public static void main(String[] args) {
         System.out.println(ANSI_PURPLE + "Welcome to the voting system!" + ANSI_RESET);
@@ -68,6 +74,10 @@ public class StartVoting {
 
         peer.registerWithLeader(peer.getMyIp() + ":" + myPort); // adds us to the peerNodes list, and give us an id
 
+        // Start new thread to periodically check registry server status
+        Runnable heartbeat = new SessionHeartbeat(peer);
+        beatHandle = scheduler.scheduleAtFixedRate(heartbeat, 10, 10, TimeUnit.SECONDS);
+
         peer.waitForStartVoting();
     }
 
@@ -104,10 +114,13 @@ public class StartVoting {
             peer.startPeer();
             peer.registerWithLeader(leaderAddress);
 
+            // Start new thread to periodically check registry server status
+            Runnable heartbeat = new SessionHeartbeat(peer);
+            beatHandle = scheduler.scheduleAtFixedRate(heartbeat, 10, 10, TimeUnit.SECONDS);
+
             System.out.println(ANSI_PURPLE + "Waiting for leader to start voting..." + ANSI_RESET);
         } else {
             System.out.println(ANSI_PURPLE + "Invalid session code!" + ANSI_RESET);
         }
     }
-
 }

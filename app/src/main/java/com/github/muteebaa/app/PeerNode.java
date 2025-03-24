@@ -483,6 +483,10 @@ public class PeerNode {
         }
     }
 
+    public String getLeaderAddress() {
+        return leaderAddress;
+    }
+
     public boolean hasLeaderToken() {
         return leaderToken;
     }
