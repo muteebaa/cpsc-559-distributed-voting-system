@@ -31,6 +31,8 @@ public class PeerNode {
     private String sessionCode;
     private boolean acknowledgment = false;
 
+    private volatile boolean votingStarted = false; // move this to registry for synch/consistency
+
     private volatile boolean leaderToken;
     private long lastHeartbeatTime = System.currentTimeMillis(); // Track last heartbeat
     private boolean running = false; // wether or not this node is running in the election
@@ -152,7 +154,11 @@ public class PeerNode {
             }
         }
 
-        changeLeader(leaderAddress);
+        // if im the leader
+        if (this.leaderAddress == null) {
+            System.out.println("I am not the leader.");
+            setLeaderAddress(leaderAddress);
+        }
 
         // start the heartbeat and monitor
         this.startHeartbeat();
@@ -307,17 +313,17 @@ public class PeerNode {
 
             String newLeaderIp = peerNodes.get(Integer.parseInt(newLeadersId));
 
-            changeLeader(newLeaderIp);
+            setLeaderAddress(newLeaderIp);
         }
     }
 
     /**
      * Determines the leader node. (Currently hardcoded)
      */
-    public void changeLeader(String leaderAddress) {
+    public void setLeaderAddress(String leaderAddress) {
         System.out.println("leader address: " + leaderAddress);
 
-        // remove peer with leader address from peerNodes
+        // remove peer with previous leader address from peerNodes
         peerNodes.values().removeIf(value -> value.equals(this.leaderAddress));
 
         this.leaderAddress = leaderAddress;
@@ -334,6 +340,9 @@ public class PeerNode {
         return leaderToken;
     }
 
+    /**
+     * for the first time
+     */
     public void setLeaderToken() {
         this.leaderToken = true;
         // set leader address to my address
@@ -341,7 +350,24 @@ public class PeerNode {
 
         System.out.println("Leader token set.");
         System.out.println(leaderAddress);
+    }
 
+    /**
+     * when a new leader is elected use this
+     */
+    public void takeLeaderToken() {
+        this.leaderToken = true;
+        // set leader address to my address
+        this.leaderAddress = getMyIp() + ":" + this.port;
+
+        System.out.println("Leader token set.");
+        System.out.println(leaderAddress);
+
+        nodeComm.broadcastMessage("LEADER:" + this.nodeId, peerNodes.values());
+
+        if (!this.votingStarted) {
+            this.waitForStartVoting();
+        }
     }
 
     /**
@@ -403,6 +429,7 @@ public class PeerNode {
     }
 
     public void promptForVote() {
+        this.votingStarted = true;
         String options = SessionRegistry.getVotingOptions(sessionCode).toString();
         System.out.println("\nVoting started!");
         System.out.println("Voting options: " + options);
@@ -427,6 +454,20 @@ public class PeerNode {
             }
         } else {
             System.out.println("Input stream closed. Cannot receive votes.");
+        }
+    }
+
+    public void waitForStartVoting() {
+        while (true) {
+            System.out.print("Enter 'start' to begin voting: ");
+            String input = scanner.nextLine().trim().toLowerCase();
+
+            if (input.equals("start")) {
+                this.startVoting();
+                this.promptForVote(); // Prompt leader to vote
+                break;
+            }
+            System.out.println("Invalid input. Type 'start' to begin.");
         }
     }
 
@@ -505,13 +546,12 @@ public class PeerNode {
 
         // if i is the highest id
         if (this.nodeId == highestCurrentId) {
-            setLeaderToken();
             System.out.println("Node " + nodeId + " is the highest id. Declaring myself as leader.");
             // then
             // send leader(i) to all Pj, where j ≠ i else
             System.out.println("Sending leader message to all peers: " + peerNodes.values());
+            takeLeaderToken();
 
-            nodeComm.broadcastMessage("LEADER:" + this.nodeId, peerNodes.values());
         } else {
             // get list of ids bigger than mine
             Map<Number, String> biggerIds = peerNodes.entrySet().stream()
@@ -544,8 +584,9 @@ public class PeerNode {
                 // No response → Declare self as leader
                 if (this.running && !hasLeaderToken()) {
                     System.out.println("Node " + nodeId + " received no response. Declaring myself as leader.");
-                    setLeaderToken();
-                    nodeComm.broadcastMessage("LEADER:" + getMyIp() + "," + this.port, peerNodes.values());
+                    takeLeaderToken();
+                    // nodeComm.broadcastMessage("LEADER:" + getMyIp() + "," + this.port,
+                    // peerNodes.values());
                 }
             }
             // while (!this.bullied) {

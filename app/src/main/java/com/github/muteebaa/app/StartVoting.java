@@ -41,12 +41,13 @@ public class StartVoting {
 
         // Generate session code and store it
         String sessionCode = peer.startNewSession(options);
-        peer.registerWithLeader(peer.getMyIp() + ":" + myPort); // adds us to the peerNodes list, and give us an id
 
         System.out.println("\nSession created! Share this code: " + sessionCode);
         System.out.println("Voting options: " + options);
 
-        leaderNeedsToStartVoting(peer); // TTL
+        peer.registerWithLeader(peer.getMyIp() + ":" + myPort); // adds us to the peerNodes list, and give us an id
+
+        peer.waitForStartVoting();
     }
 
     private static void joinExistingElection() {
@@ -90,17 +91,4 @@ public class StartVoting {
         }
     }
 
-    private static void leaderNeedsToStartVoting(PeerNode peer) {
-        while (true) {
-            System.out.print("Enter 'start' to begin voting: ");
-            String input = scanner.nextLine().trim().toLowerCase();
-
-            if (input.equals("start")) {
-                peer.startVoting();
-                peer.promptForVote(); // Prompt leader to vote
-                break;
-            }
-            System.out.println("Invalid input. Type 'start' to begin.");
-        }
-    }
 }
