@@ -24,8 +24,8 @@ public class PeerNode {
     public static final String ANSI_RESET = "\u001B[0m";
     public static final String ANSI_BLACK = "\u001B[30m";
     public static final String ANSI_RED = "\u001B[31m"; // heartbeat
-    public static final String ANSI_GREEN = "\u001B[32m";
-    public static final String ANSI_YELLOW = "\u001B[33m"; // vote submission
+    public static final String ANSI_GREEN = "\u001B[32m"; // registration
+    public static final String ANSI_YELLOW = "\u001B[33m"; // ACKS
     public static final String ANSI_BLUE = "\u001B[34m";
     public static final String ANSI_PURPLE = "\u001B[35m"; // CLI
     public static final String ANSI_CYAN = "\u001B[36m"; // election
@@ -236,7 +236,7 @@ public class PeerNode {
                     // If no heartbeat received for 10+ sec → Start election
                     if (System.currentTimeMillis() - lastHeartbeatTime > 10000) {
                         if (!this.running) {
-                            System.out.println("No heartbeat received. Starting election.");
+                            System.out.println(ANSI_CYAN + "No heartbeat received. Starting election." + ANSI_RESET);
                             this.initiateElection();
                         }
                     }
@@ -331,7 +331,7 @@ public class PeerNode {
 
             nodeComm.broadcastMessage("UPDATE_NEW_PEER:" + newId + "," + peer + "-" + peerList, peerNodes.values());
 
-            System.out.println("My peer list: " + peerNodes);
+            System.out.println(ANSI_GREEN + "My peer list: " + peerNodes + ANSI_RESET);
 
             nodeComm.connectToNode(peer.split(":")[0], Integer.parseInt(peer.split(":")[1]));
             nodeComm.sendMessage("ACK: You are successfully registered.", nodeComm.getClientSocket());
@@ -376,7 +376,7 @@ public class PeerNode {
                 }
             }
 
-            System.out.println("Updated peer list: " + peerNodes);
+            System.out.println(ANSI_GREEN + "Updated peer list: " + peerNodes + ANSI_RESET);
         } else if (message.startsWith("ACK:")) {
             synchronized (this) {
                 acknowledgment = true;
@@ -410,7 +410,9 @@ public class PeerNode {
             }
 
         } else if (message.startsWith("DUPLICATE:")) {
-            System.out.println("A duplicate vote was detected with your UUID. The most recent vote was not submitted.");
+            System.out.println(ANSI_PURPLE
+                    + "A duplicate vote was detected with your UUID. The most recent vote was not submitted."
+                    + ANSI_RESET);
 
         } else if (message.startsWith("UPDATE_VOTE_TALLY:")) {
             String vote = message.substring(54).trim();
@@ -423,7 +425,7 @@ public class PeerNode {
             System.out.println();
             System.out.println(message.substring(13));
         } else if (message.startsWith("ELECTION:")) {
-            System.out.println("Election message received: " + message);
+            System.out.println(ANSI_GREEN + "Election message received: " + message + ANSI_RESET);
             int idOfNodeRunning = Integer.parseInt(
                     message.substring("ELECTION:".length()));
 
@@ -497,7 +499,7 @@ public class PeerNode {
         this.leaderAddress = getMyIp() + ":" + this.port;
 
         // System.out.println("Leader token set.");
-        System.out.println(leaderAddress);
+        // System.out.println(leaderAddress);
     }
 
     /**
@@ -509,7 +511,7 @@ public class PeerNode {
         this.leaderAddress = getMyIp() + ":" + this.port;
 
         System.out.println(ANSI_CYAN + "Leader token set." + ANSI_RESET);
-        System.out.println(leaderAddress);
+        // System.out.println(leaderAddress);
 
         nodeComm.broadcastMessage("LEADER:" + this.nodeId, peerNodes.values());
 
@@ -578,10 +580,10 @@ public class PeerNode {
     public void promptForVote() {
         this.votingStarted = true;
         String options = SessionRegistry.getVotingOptions(sessionCode).toString();
-        System.out.println("\nVoting started!");
-        System.out.println("Voting options: " + options);
+        System.out.println(ANSI_PURPLE + "\nVoting started!" + ANSI_RESET);
+        System.out.println(ANSI_PURPLE + "Voting options: " + options + ANSI_RESET);
 
-        System.out.print(ANSI_PURPLE + "Enter your vote: " + ANSI_RESET);
+        System.out.println(ANSI_PURPLE + "Enter your vote: " + ANSI_RESET);
         if (scanner.hasNextLine()) {
             String vote = scanner.nextLine();
             sendVoteToLeader(vote);
@@ -611,7 +613,7 @@ public class PeerNode {
                 this.promptForVote(); // Prompt leader to vote
                 break;
             }
-            System.out.println("Invalid input. Type 'start' to begin.");
+            System.out.println(ANSI_PURPLE + "Invalid input. Type 'start' to begin." + ANSI_RESET);
         }
     }
 
@@ -624,7 +626,7 @@ public class PeerNode {
                 this.endVoting();
                 break;
             }
-            System.out.println("Invalid input. Type 'end' to end voting.");
+            System.out.println(ANSI_PURPLE + "Invalid input. Type 'end' to end voting." + ANSI_RESET);
         }
     }
 
@@ -633,7 +635,7 @@ public class PeerNode {
      */
     public void endVoting() {
         String results = "VOTING_ENDED:Thanks for voting! Voting results: " + voteTally;
-        System.out.println(results.substring(13));
+        System.out.println(ANSI_PURPLE + results.substring(13) + ANSI_RESET);
         nodeComm.broadcastMessage(results, peerNodes.values());
     }
 
@@ -662,9 +664,9 @@ public class PeerNode {
     public static void displayAvailableSessions() {
         Map<String, String> sessions = SessionRegistry.loadSessions();
         if (sessions.isEmpty()) {
-            System.out.println("No available sessions found.");
+            System.out.println(ANSI_PURPLE + "No available sessions found." + ANSI_RESET);
         } else {
-            System.out.println("Available sessions:");
+            System.out.println(ANSI_PURPLE + "Available sessions:" + ANSI_RESET);
             for (Map.Entry<String, String> entry : sessions.entrySet()) {
                 System.out.println("Code: " + entry.getKey() + " | Details: " + entry.getValue());
             }
@@ -776,16 +778,17 @@ public class PeerNode {
 
     }
 
-    private void waitForResponse(int timeout) {
-        try {
-            Thread.sleep(timeout);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+    // private void waitForResponse(int timeout) {
+    // try {
+    // Thread.sleep(timeout);
+    // } catch (InterruptedException e) {
+    // Thread.currentThread().interrupt();
+    // }
 
-        // If still running and no leader message, restart election
-        if (this.running && !hasLeaderToken()) {
-            System.out.println("Node " + nodeId + " received no response. Declaring itself as leader.");
-        }
-    }
+    // // If still running and no leader message, restart election
+    // if (this.running && !hasLeaderToken()) {
+    // System.out.println("Node " + nodeId + " received no response. Declaring
+    // itself as leader.");
+    // }
+    // }
 }

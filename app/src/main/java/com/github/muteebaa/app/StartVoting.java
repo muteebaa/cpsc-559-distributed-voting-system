@@ -63,7 +63,7 @@ public class StartVoting {
     }
 
     private static void joinExistingElection() {
-        System.out.println("\nJoining an existing election!");
+        System.out.println(ANSI_PURPLE + "\nJoining an existing election!" + ANSI_RESET);
         System.out.print(ANSI_PURPLE + "Enter session code: " + ANSI_RESET);
         String sessionCode = scanner.nextLine();
 
@@ -84,20 +84,7 @@ public class StartVoting {
             peer.startPeer();
             peer.registerWithLeader(leaderAddress);
 
-            System.out.println("Waiting for leader to start voting...");
-
-            System.out.println("or start fake leader election!");
-
-            // int choice = scanner.nextInt();
-            // scanner.nextLine(); // Consume newline
-
-            // switch (choice) {
-            // case 1:
-            // peer.initiateElection();
-            // break;
-            // default:
-            // System.out.println("Invalid choice. Please enter 1.");
-            // }
+            System.out.println(ANSI_PURPLE + "Waiting for leader to start voting..." + ANSI_RESET);
         } else {
             System.out.println(ANSI_PURPLE + "Invalid session code!" + ANSI_RESET);
         }
