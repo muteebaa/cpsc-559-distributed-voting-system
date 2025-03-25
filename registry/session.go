@@ -59,6 +59,18 @@ func (id *SessId) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Updates s1 with the (possibly empty) IP and port of s2. Any other attributes
+// are simply ignored if present. The IP and port are also ignored if empty
+func (s1 *Session) updateSession(s2 *Session) {
+	if s1.Host != nil {
+		s2.Host = s1.Host
+	}
+
+	if s1.Port != 0 {
+		s2.Port = s1.Port
+	}
+}
+
 // Returns the [Session] information for a single session ID contained within
 // the URL
 func getSingleSession(w http.ResponseWriter, r *http.Request) {
@@ -205,6 +217,7 @@ func addSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// FIXME: Errors may leave an invalid session file
 	if err = os.WriteFile(filepath, d, 0o644); err != nil {
 		logger.Error(fmt.Sprintf(`Session file "%s" could not be written to`, filepath))
 		http.Error(w, "Failed to write file", http.StatusInternalServerError)
@@ -216,4 +229,61 @@ func addSession(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	json.NewEncoder(w).Encode(newId)
+}
+
+// Updates the requested [Session] (ID in URL) with the new leader nodes
+// (potentially partial) information. That is, only the Host and Port may be
+// updated for a session
+func updateSession(w http.ResponseWriter, r *http.Request) {
+	logger := httplog.LogEntry(r.Context())
+	var s1 Session
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&s1); err != nil {
+		logger.Error("Session metadata could not be decoded")
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	sessId := chi.URLParam(r, "sess")
+	_, err := os.Stat(fmt.Sprintf("%s/%s.json", sessDir, sessId))
+	if err != nil && errors.Is(err, fs.ErrNotExist) {
+		logger.Debug(fmt.Sprintf("Session %s could not be located", sessId))
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	filepath := fmt.Sprintf("%s/%s.json", sessDir, sessId)
+	file, err := os.Open(filepath)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Session file %s could not be read", sessId))
+		http.Error(w, "Session file could not be read", http.StatusInternalServerError)
+		return
+	}
+	defer file.Close()
+
+	var s2 Session
+	dec = json.NewDecoder(file)
+	if err = dec.Decode(&s2); err != nil {
+		logger.Error(fmt.Sprintf("Session %s could not be loaded", sessId))
+		http.Error(w, "Session could not be loaded", http.StatusInternalServerError)
+		return
+	}
+
+	s1.updateSession(&s2)
+	d, err := json.Marshal(s1)
+	if err != nil {
+		logger.Error("Session metadata could not be encoded to JSON")
+		http.Error(w, "Failed to marshal JSON", http.StatusInternalServerError)
+		return
+	}
+
+	// FIXME: Errors may leave an invalid session file
+	if err = os.WriteFile(filepath, d, 0o644); err != nil {
+		logger.Error(fmt.Sprintf(`Session file "%s" could not be written to`, filepath))
+		http.Error(w, "Failed to write file", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }

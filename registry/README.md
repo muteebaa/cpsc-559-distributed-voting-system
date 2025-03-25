@@ -116,3 +116,19 @@ the assigned session ID
 ```json
 "ABC123"
 ```
+
+### Update Ongoing Session
+
+`GET /sessions/{SESSION_ID}`
+
+Updates the leader information for a session. Only the host IP and port number
+may be updated for a session. An update may contain either one of both of these
+attributes
+
+**Example Request:**
+
+```json
+{
+    "host": "127.0.0.1",
+}
+```

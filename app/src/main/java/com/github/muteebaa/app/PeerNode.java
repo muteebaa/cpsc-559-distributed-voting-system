@@ -1,9 +1,19 @@
 package com.github.muteebaa.app;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.file.FileSystemException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 /**
  * Represents a peer node in a distributed voting system.
@@ -30,6 +40,8 @@ public class PeerNode {
     private String leaderAddress;
     private String sessionCode;
     private boolean acknowledgment = false;
+    private String uuid;
+    private ConcurrentSkipListSet<String> uuidSet;
 
     private volatile boolean votingStarted = false; // move this to registry for synch/consistency
 
@@ -52,9 +64,125 @@ public class PeerNode {
     public PeerNode(int port) {
         this.nodeComm = new NodeCommunication();
         this.port = port;
-        this.nodeId = 1; // will be set by the leader
+        this.nodeId = 1;
         this.peerNodes = new HashMap<Number, String>();
         this.voteTally = new HashMap<>();
+        try {
+            this.uuid = loadUUID();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            System.err.println("Failed to load UUID. Application closing.");
+            System.out.println("Failed to load UUID. Application closing.");
+            System.exit(-1);
+        }
+        this.uuidSet = new ConcurrentSkipListSet<>();
+    }
+
+    /**
+     * This gets the System/Motherboard UUID which is unique to the motherboard.
+     * This effectively means 1 machine one vote for our system.
+     * This should be valid for both Linux and Windows machines. MAC is not
+     * supported.
+     * 
+     * @return System UUID/Motherboard UUID
+     */
+    private static String getSystemUUID() {
+        String uuid = null;
+        try {
+            // For Linux
+            if (System.getProperty("os.name").toLowerCase().contains("linux")) {
+                Process process = Runtime.getRuntime().exec("cat /sys/class/dmi/id/product_uuid");
+                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                uuid = reader.readLine();
+            }
+            // For Windows
+            else if (System.getProperty("os.name").toLowerCase().contains("win")) {
+                Process process = Runtime.getRuntime().exec("wmic computersystem get UUID");
+                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                reader.readLine(); // Skip the header
+                uuid = reader.readLine().trim();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return uuid;
+    }
+
+    /**
+     * Uses the System/Motherboard UUID to generate a unique java UUID.
+     * 
+     * @return UUID based on the System/Motherboard UUID
+     */
+    private static UUID generateUUID() {
+        String systemUUID = getSystemUUID();
+        if (systemUUID != null) {
+            return UUID.nameUUIDFromBytes(systemUUID.getBytes());
+        }
+        return null;
+    }
+
+    /**
+     * Saves a UUID as a string to the user home directory in the folder .uuid in a
+     * read only file uuid.txt.
+     * 
+     * @param uuid
+     * @return Boolean based on if the saving was successful
+     */
+    private static boolean saveUUID(UUID uuid) {
+        String filePath = System.getProperty("user.home") + File.separator + ".uuid" + File.separator + "uuid.txt";
+        try {
+            File file = new File(filePath);
+            file.getParentFile().mkdirs();
+            BufferedWriter writer = new BufferedWriter(new FileWriter(file));
+            writer.write(uuid.toString());
+            writer.close();
+            file.setReadOnly();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * This function tries to load from the uuid.txt file in the .uuid folder in the
+     * user home directory.
+     * If the file doesn't exist, it will *try* to generate a UUID file for the
+     * user. This file is READ ONLY when generated.
+     * Technically speaking there are ways around this current implementation, as in
+     * there are no check sums, but for now
+     * this is okay as we are not releasing this commercially.
+     * If there is a failure to do the task, as in the file does not exist and fails
+     * to generate, it will throw a FileNotFoundException.
+     * 
+     * @throws FileNotFoundException
+     * @return The UUID as a string.
+     */
+    private static String loadUUID() throws FileNotFoundException {
+        // This UUID is based in the location "user.home"/.uuid/uuid.txt
+        String filePath = System.getProperty("user.home") + File.separator + ".uuid" + File.separator + "uuid.txt";
+        File file = new File(filePath);
+        if (!file.exists()) {
+            boolean success = saveUUID(generateUUID());
+            if (!success) {
+                throw new FileNotFoundException(
+                        "File uuid.txt in the 'user home'/.uuid folder does not exist and failed to generate properly.");
+            }
+        }
+        file = new File(filePath);
+        StringBuilder content = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                content.append(line).append(System.lineSeparator());
+            }
+            if (content.length() == 0) {
+                return null;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return content.toString();
     }
 
     public void setSessionCode(String sessionCode) {
@@ -254,7 +382,7 @@ public class PeerNode {
             String vote = parts[3];
             updateVoteTally(vote);
             if (leaderToken) {
-                nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + vote, peerNodes.values());
+                nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + vote, peerNodes);
                 nodeComm.connectToNode(host, port);
                 nodeComm.sendMessage("ACK: Your vote was successfully counted.", nodeComm.getClientSocket());
             }
@@ -304,6 +432,11 @@ public class PeerNode {
 
             setLeaderAddress(newLeaderIp);
         }
+    }
+
+    public boolean updateUUID(String uuid) {
+        boolean succcess = uuidSet.add(uuid);
+        return succcess;
     }
 
     /**
@@ -375,30 +508,15 @@ public class PeerNode {
      */
     public synchronized void sendVoteToLeader(String vote) {
         this.acknowledgment = false;
-
-        if (nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]))) {
-            nodeComm.sendMessage("VOTE:localhost:" + this.port + ":" + vote, nodeComm.getClientSocket());
-
-            // Wait for acknowledgment from the leader
-            while (!acknowledgment) {
-                try {
-                    wait();
-                } catch (InterruptedException e) {
-                    // e.printStackTrace();
-
-                    // add vote to buffer
-                    voteBuffer = vote;
-
-                    // initiate election
-                    this.initiateElection();
-                }
+        nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]));
+        nodeComm.sendMessage("VOTE:localhost:" + this.port + ":" + vote, nodeComm.getClientSocket());
+        // Wait for acknowledgment from the leader
+        while (!acknowledgment) {
+            try {
+                wait(); // Correct usage inside synchronized block
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
-        } else {
-            // add vote to buffer
-            voteBuffer = vote;
-
-            // initiate election
-            this.initiateElection();
         }
     }
 

@@ -5,6 +5,8 @@ import java.net.*;
 import java.util.*;
 import java.util.function.Consumer;
 
+
+//String filePath = System.getProperty("user.home")
 /**
  * Handles peer-to-peer communication between nodes.
  * Supports message sending, receiving, peer tracking, and voting tallying.
@@ -23,6 +25,7 @@ public class NodeCommunication {
      */
     public void startServer(int port, Consumer<String> handler) {
         this.messageHandler = handler;
+        
         try {
             serverSocket = new ServerSocket(port);
             // System.out.println("server started!");
@@ -129,6 +132,8 @@ public class NodeCommunication {
             }
         }
     }
+
+    
 
     /**
      * Retrieves the current vote tally.
