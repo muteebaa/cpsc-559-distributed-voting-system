@@ -98,8 +98,8 @@ public class PeerNode {
 
                     // If no heartbeat received for 10+ sec → Start election
                     if (System.currentTimeMillis() - lastHeartbeatTime > 10000) {
-                        System.out.println("No heartbeat received. Starting election if not running.");
                         if (!this.running) {
+                            System.out.println("No heartbeat received. Starting election.");
                             this.initiateElection();
                         }
                     }
@@ -112,7 +112,7 @@ public class PeerNode {
         try {
             // Get the local host (your machine's IP address)
             String myIp = InetAddress.getLocalHost().getHostAddress();
-            System.out.println("My IP Address: " + myIp);
+            // System.out.println("My IP Address: " + myIp);
 
             return myIp;
         } catch (UnknownHostException e) {
@@ -154,9 +154,7 @@ public class PeerNode {
             }
         }
 
-        // if im the leader
         if (this.leaderAddress == null) {
-            System.out.println("I am not the leader.");
             setLeaderAddress(leaderAddress);
         }
 
@@ -321,8 +319,6 @@ public class PeerNode {
      * Determines the leader node. (Currently hardcoded)
      */
     public void setLeaderAddress(String leaderAddress) {
-        System.out.println("leader address: " + leaderAddress);
-
         // remove peer with previous leader address from peerNodes
         peerNodes.values().removeIf(value -> value.equals(this.leaderAddress));
 
@@ -436,10 +432,7 @@ public class PeerNode {
 
         System.out.print("Enter your vote: ");
         if (scanner.hasNextLine()) {
-            System.out.println("got vote!!!!");
             String vote = scanner.nextLine();
-            System.out.println(vote);
-
             sendVoteToLeader(vote);
             System.out.println("Vote submitted: " + vote);
             if (!this.leaderToken) {
