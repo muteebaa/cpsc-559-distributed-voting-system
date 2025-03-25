@@ -604,7 +604,7 @@ public class PeerNode {
 
     public void waitForStartVoting() {
         while (true) {
-            System.out.print(ANSI_PURPLE + "Enter 'start' to begin voting: " + ANSI_RESET);
+            System.out.println(ANSI_PURPLE + "Enter 'start' to begin voting: " + ANSI_RESET);
             String input = scanner.nextLine().trim().toLowerCase();
 
             if (input.equals("start")) {

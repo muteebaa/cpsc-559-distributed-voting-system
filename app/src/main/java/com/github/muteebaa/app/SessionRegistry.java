@@ -144,7 +144,7 @@ public class SessionRegistry {
     }
 
     private static Builder buildRegistryReq(String path) {
-        String registryAddr = "http://127.0.0.1:12020";
+        String registryAddr = "https://fd87-2001-56a-7d22-3100-ca4-f577-516f-64bc.ngrok-free.app";
         URI uri = URI.create(registryAddr + path);
         return HttpRequest.newBuilder(uri)
                 .header("Content-Type", "application/json");
