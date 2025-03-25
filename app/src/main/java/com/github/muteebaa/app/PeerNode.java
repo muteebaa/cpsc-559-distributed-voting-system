@@ -69,12 +69,15 @@ public class PeerNode {
         this.voteTally = new HashMap<>();
         try {
             this.uuid = loadUUID();
+            if (this.uuid == null) { // Extra safety check
+                throw new IllegalStateException("UUID loading failed, received null.");
+            }
         } catch (FileNotFoundException e) {
             e.printStackTrace();
             System.err.println("Failed to load UUID. Application closing.");
-            System.out.println("Failed to load UUID. Application closing.");
             System.exit(-1);
         }
+
         this.uuidSet = new ConcurrentSkipListSet<>();
     }
 
@@ -130,18 +133,20 @@ public class PeerNode {
      */
     private static boolean saveUUID(UUID uuid) {
         String filePath = System.getProperty("user.home") + File.separator + ".uuid" + File.separator + "uuid.txt";
+
         try {
             File file = new File(filePath);
-            file.getParentFile().mkdirs();
-            BufferedWriter writer = new BufferedWriter(new FileWriter(file));
-            writer.write(uuid.toString());
-            writer.close();
-            file.setReadOnly();
-        } catch (Exception e) {
+            file.getParentFile().mkdirs(); // Ensure directory exists
+
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, false))) {
+                writer.write(uuid.toString());
+            }
+
+            return file.setReadOnly(); // Ensure the file is read-only
+        } catch (IOException e) {
             e.printStackTrace();
             return false;
         }
-        return true;
     }
 
     /**
@@ -159,30 +164,34 @@ public class PeerNode {
      * @return The UUID as a string.
      */
     private static String loadUUID() throws FileNotFoundException {
-        // This UUID is based in the location "user.home"/.uuid/uuid.txt
         String filePath = System.getProperty("user.home") + File.separator + ".uuid" + File.separator + "uuid.txt";
         File file = new File(filePath);
+
         if (!file.exists()) {
-            boolean success = saveUUID(generateUUID());
+            UUID newUUID = generateUUID();
+            boolean success = saveUUID(newUUID);
             if (!success) {
                 throw new FileNotFoundException(
                         "File uuid.txt in the 'user home'/.uuid folder does not exist and failed to generate properly.");
             }
+            return newUUID.toString(); // ✅ Return the generated UUID
         }
-        file = new File(filePath);
+
         StringBuilder content = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                content.append(line).append(System.lineSeparator());
+                content.append(line);
             }
-            if (content.length() == 0) {
-                return null;
+            String uuidString = content.toString().trim();
+            if (uuidString.isEmpty()) {
+                throw new IOException("UUID file is empty.");
             }
+            return uuidString;
         } catch (IOException e) {
             e.printStackTrace();
+            throw new FileNotFoundException("Failed to read UUID from file: " + e.getMessage());
         }
-        return content.toString();
     }
 
     public void setSessionCode(String sessionCode) {
@@ -377,18 +386,26 @@ public class PeerNode {
             System.out.println(ANSI_YELLOW + message + ANSI_RESET);
         } else if (message.startsWith("VOTE:")) {
             String[] parts = message.split(":");
-            String host = parts[1];
-            int port = Integer.parseInt(parts[2]);
-            String vote = parts[3];
+            int nodeId = Integer.parseInt(parts[1]);
+
+            String address = peerNodes.get(nodeId);
+            String host = address.split(":")[0];
+            int port = Integer.parseInt(address.split(":")[1]);
+
+            String vote = parts[2];
             updateVoteTally(vote);
+            String uuid = parts[3];
+            updateUUID(uuid);
             if (leaderToken) {
-                nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + vote, peerNodes);
+                nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + uuid + ":" + vote, peerNodes.values());
                 nodeComm.connectToNode(host, port);
                 nodeComm.sendMessage("ACK: Your vote was successfully counted.", nodeComm.getClientSocket());
             }
         } else if (message.startsWith("UPDATE_VOTE_TALLY:")) {
-            String vote = message.substring(18).trim();
+            String vote = message.substring(54).trim();
+            String uuid = message.substring(18, 54).trim();
             updateVoteTally(vote);
+            updateUUID(uuid);
         } else if (message.startsWith("START_VOTING")) {
             new Thread(this::promptForVote).start();
         } else if (message.startsWith("VOTING_ENDED:")) {
@@ -508,15 +525,31 @@ public class PeerNode {
      */
     public synchronized void sendVoteToLeader(String vote) {
         this.acknowledgment = false;
-        nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]));
-        nodeComm.sendMessage("VOTE:localhost:" + this.port + ":" + vote, nodeComm.getClientSocket());
-        // Wait for acknowledgment from the leader
-        while (!acknowledgment) {
-            try {
-                wait(); // Correct usage inside synchronized block
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+
+        if (nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]))) {
+
+            nodeComm.sendMessage("VOTE:" + this.nodeId + ":" + vote + ":" + this.uuid, nodeComm.getClientSocket());
+
+            // Wait for acknowledgment from the leader
+            while (!acknowledgment) {
+                try {
+                    wait();
+                } catch (InterruptedException e) {
+                    // e.printStackTrace();
+
+                    // add vote to buffer
+                    voteBuffer = vote;
+
+                    // initiate election
+                    this.initiateElection();
+                }
             }
+        } else {
+            // add vote to buffer
+            voteBuffer = vote;
+
+            // initiate election
+            this.initiateElection();
         }
     }
 
