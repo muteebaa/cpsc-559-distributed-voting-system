@@ -174,7 +174,7 @@ public class PeerNode {
                 throw new FileNotFoundException(
                         "File uuid.txt in the 'user home'/.uuid folder does not exist and failed to generate properly.");
             }
-            return newUUID.toString(); // ✅ Return the generated UUID
+            return newUUID.toString();
         }
 
         StringBuilder content = new StringBuilder();
@@ -341,14 +341,14 @@ public class PeerNode {
             System.out.println(ANSI_RED + "Heartbeat received." + ANSI_RESET);
             lastHeartbeatTime = System.currentTimeMillis(); // Reset timer
         } else if (message.startsWith("UPDATE_NEW_PEER:")) {
-            System.out.println("New peer message received: " + message);
-            System.out.println("My peer list before update: " + peerNodes);
+            // System.out.println("New peer message received: " + message);
+            // System.out.println("My peer list before update: " + peerNodes);
 
             // Extract data from message
             String newPeerData = message.substring("UPDATE_NEW_PEER:".length()).trim();
             String[] parts = newPeerData.split("-");
 
-            System.out.println("Parts: " + Arrays.toString(parts));
+            // System.out.println("Parts: " + Arrays.toString(parts));
 
             // if (parts.length < 2) {
             // System.out.println("Invalid peer update message format.");
@@ -394,13 +394,24 @@ public class PeerNode {
 
             String vote = parts[2];
             updateVoteTally(vote);
-            String uuid = parts[3];
-            updateUUID(uuid);
-            if (leaderToken) {
-                nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + uuid + ":" + vote, peerNodes.values());
+            String incomingUUID = parts[3];
+            if (!(this.uuidSet.contains(incomingUUID))) {
+                this.uuidSet.add(incomingUUID);
+                updateVoteTally(vote);
+                if (leaderToken) {
+                    nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + incomingUUID + ":" + vote, peerNodes.values());
+                    nodeComm.connectToNode(host, port);
+                    nodeComm.sendMessage("ACK: Your vote was successfully counted.", nodeComm.getClientSocket());
+                }
+            } else {
                 nodeComm.connectToNode(host, port);
-                nodeComm.sendMessage("ACK: Your vote was successfully counted.", nodeComm.getClientSocket());
+                nodeComm.sendMessage("DUPLICATE: A vote has already been cast with your UUID.",
+                        nodeComm.getClientSocket());
             }
+
+        } else if (message.startsWith("DUPLICATE:")) {
+            System.out.println("A duplicate vote was detected with your UUID. The most recent vote was not submitted.");
+
         } else if (message.startsWith("UPDATE_VOTE_TALLY:")) {
             String vote = message.substring(54).trim();
             String uuid = message.substring(18, 54).trim();
