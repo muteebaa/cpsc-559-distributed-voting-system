@@ -393,7 +393,6 @@ public class PeerNode {
             int port = Integer.parseInt(address.split(":")[1]);
 
             String vote = parts[2];
-            updateVoteTally(vote);
             String incomingUUID = parts[3];
             if (!(this.uuidSet.contains(incomingUUID))) {
                 this.uuidSet.add(incomingUUID);
