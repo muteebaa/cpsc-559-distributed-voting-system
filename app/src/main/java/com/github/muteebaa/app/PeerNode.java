@@ -68,7 +68,7 @@ public class PeerNode {
             }
             // For Windows
             else if (System.getProperty("os.name").toLowerCase().contains("win")) {
-                Process process = Runtime.getRuntime().exec("wmic computersystem get UUID");
+                Process process = Runtime.getRuntime().exec("wmic path win32_computersystemproduct get UUID");
                 BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
                 reader.readLine(); // Skip the header
                 uuid = reader.readLine().trim();
