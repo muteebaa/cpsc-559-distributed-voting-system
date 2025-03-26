@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,9 +13,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httplog/v2"
-)
 
-const sessDir = "session"
+	"github.com/muteebaa/cpsc-559-distributed-voting-system/node"
+	"github.com/muteebaa/cpsc-559-distributed-voting-system/session"
+)
 
 // Handles basic configuration for the rest of the program
 func main() {
@@ -56,7 +55,7 @@ func main() {
 // Begin running the HTTP server, ensuring that shutdowns may be handled
 // gracefully
 func run(port int, logOpts httplog.Options) {
-	err := createDir()
+	err := session.CreateDir()
 	if err != nil {
 		panic(err)
 	}
@@ -111,25 +110,9 @@ func service(logOpts httplog.Options) http.Handler {
 	// Add some middleware processing on every request
 	r.Use(httplog.RequestLogger(logger))
 	r.Use(middleware.StripSlashes)
-	r.Use(middleware.AllowContentType("application/json"))
+	r.Use(middleware.Heartbeat("/ping"))
 
-	// Specifying API endpoints
-	r.Get(fmt.Sprintf("/sessions/{sess:%s}", sessIdRegex), getSingleSession)
-	r.Patch(fmt.Sprintf("/sessions/{sess:%s}", sessIdRegex), updateSession)
-	r.Get("/sessions", getAllSessions)
-	r.Post("/sessions", addSession)
-	r.Get("/sessions/all", getAllSessionInfo)
+	r.Mount("/sessions", node.Handler())
 
 	return r
-}
-
-func createDir() error {
-	err := os.Mkdir(sessDir, 0o750)
-	if err != nil && !errors.Is(err, fs.ErrExist) {
-		slog.Error(fmt.Sprintf(`Directory "%s" could not be created`, sessDir))
-		return err
-	}
-
-	slog.Debug(fmt.Sprintf(`Directory "%s" created or found`, sessDir))
-	return nil
 }
