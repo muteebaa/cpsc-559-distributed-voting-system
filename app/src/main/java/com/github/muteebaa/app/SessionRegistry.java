@@ -22,9 +22,9 @@ public class SessionRegistry {
     /**
      * Saves a session code to a file.
      */
-    public static String saveSession(String host, int port, String options) {
+    public static String saveSession(String host, int port, String options, String status) {
         // FIXME: Handle port number properly
-        Session session = new Session(host, port, Arrays.asList(options.split(",")));
+        Session session = new Session(host, port, Arrays.asList(options.split(",")), status);
         Gson gson = new Gson();
 
         HttpClient client = HttpClient.newHttpClient();
@@ -45,6 +45,8 @@ public class SessionRegistry {
             e.printStackTrace();
             return "";
         }
+
+        System.out.println(resp.body());
 
         return gson.fromJson(resp.body(), String.class);
     }
@@ -79,7 +81,8 @@ public class SessionRegistry {
 
         sessionList.parallelStream()
                 .forEach(e -> {
-                    String details = String.format("%s:%d,%s", e.host, e.port, String.join(",", e.options));
+                    String details = String.format("%s:%d,%s,%s", e.host, e.port, String.join(",", e.options),
+                            e.status);
                     sessions.put(e.getId(), details);
                 });
 
@@ -143,8 +146,51 @@ public class SessionRegistry {
         return session.options;
     }
 
+    public static boolean updateSession(String sessionCode, String newStatus, String newHost, Integer newPort) {
+        HttpClient client = HttpClient.newHttpClient();
+        Gson gson = new Gson();
+
+        // Create JSON payload for updating the session
+        Map<String, Object> updateData = new HashMap<>();
+        if (newStatus != null)
+            updateData.put("status", newStatus);
+        if (newHost != null)
+            updateData.put("host", newHost);
+        if (newPort != null)
+            updateData.put("port", newPort);
+
+        if (updateData.isEmpty()) {
+            System.out.println("No updates provided.");
+            return false;
+        }
+
+        String jsonPayload = gson.toJson(updateData);
+
+        // print debug payload
+        System.out.println("Payload: " + jsonPayload);
+
+        HttpRequest req = buildRegistryReq("/sessions/" + sessionCode)
+                .method("PATCH", BodyPublishers.ofString(jsonPayload))
+                .header("Content-Type", "application/json")
+                .build();
+
+        HttpResponse<String> resp;
+        try {
+            resp = client.send(req, BodyHandlers.ofString());
+
+            // Print debug response
+            System.out.println("Response Code: " + resp.statusCode());
+            System.out.println("Response Body: " + resp.body());
+
+            return resp.statusCode() == 200; // Assuming 200 means success
+        } catch (InterruptedException | IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     private static Builder buildRegistryReq(String path) {
-        String registryAddr = "https://44b2-2001-56a-7d22-3100-ca4-f577-516f-64bc.ngrok-free.app";
+        String registryAddr = "http://localhost:12020";
         URI uri = URI.create(registryAddr + path);
         return HttpRequest.newBuilder(uri)
                 .header("Content-Type", "application/json");

@@ -518,6 +518,10 @@ public class PeerNode {
 
         nodeComm.broadcastMessage("LEADER:" + this.nodeId, peerNodes.values());
 
+        SessionRegistry.updateSession(this.sessionCode, null, leaderAddress.split(":")[0],
+                Integer.parseInt(leaderAddress.split(":")[1]));
+
+        // TODO: fetch the status from the session registry
         if (!this.votingStarted) {
             this.waitForStartVoting();
         }
@@ -612,6 +616,7 @@ public class PeerNode {
             String input = scanner.nextLine().trim().toLowerCase();
 
             if (input.equals("start")) {
+                SessionRegistry.updateSession(this.sessionCode, "started", null, null);
                 this.startVoting();
                 this.promptForVote(); // Prompt leader to vote
                 break;
@@ -626,6 +631,8 @@ public class PeerNode {
             String input = scanner.nextLine().trim().toLowerCase();
 
             if (input.equals("end")) {
+                SessionRegistry.updateSession(this.sessionCode, "ended", null, null);
+
                 this.endVoting();
                 break;
             }
@@ -652,7 +659,7 @@ public class PeerNode {
      */
     public String startNewSession(String options) {
         String myIp = getMyIp();
-        String sessionCode = SessionRegistry.saveSession(myIp, this.port, options);
+        String sessionCode = SessionRegistry.saveSession(myIp, this.port, options, "waiting");
         for (String option : options.split(",")) {
             voteTally.put(option.trim(), 0);
         }

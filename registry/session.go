@@ -24,6 +24,7 @@ type Session struct {
 	Host    net.IP   `json:"host"`    // IP of the leader node
 	Port    int      `json:"port"`    // IP the leader node is broadcasting on
 	Options []string `json:"options"` // Options for the ongoing election
+	Status string `json:"status"` // Options for the ongoing election
 }
 
 type SessId string
@@ -57,18 +58,6 @@ func (id *SessId) UnmarshalJSON(data []byte) error {
 
 	*id = SessId(rawId)
 	return nil
-}
-
-// Updates s1 with the (possibly empty) IP and port of s2. Any other attributes
-// are simply ignored if present. The IP and port are also ignored if empty
-func (s1 *Session) updateSession(s2 *Session) {
-	if s1.Host != nil {
-		s2.Host = s1.Host
-	}
-
-	if s1.Port != 0 {
-		s2.Port = s1.Port
-	}
 }
 
 // Returns the [Session] information for a single session ID contained within
@@ -231,6 +220,26 @@ func addSession(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(newId)
 }
 
+// Updates s1 with the (possibly empty) IP and port of s2. Any other attributes
+// are simply ignored if present. The IP and port are also ignored if empty
+func (s2 *Session) updateSession(s1 *Session) {
+    // Check if s1.Host is non-nil and non-empty
+    if s1.Host != nil && len(s1.Host) > 0 {
+        s2.Host = s1.Host
+    }
+
+    // Check if s1.Port is non-zero
+    if s1.Port != 0 {
+        s2.Port = s1.Port
+    }
+
+    // Check if s1.Status is non-empty
+    if s1.Status != "" {
+        s2.Status = s1.Status
+    }
+}
+
+
 // Updates the requested [Session] (ID in URL) with the new leader nodes
 // (potentially partial) information. That is, only the Host and Port may be
 // updated for a session
@@ -270,8 +279,10 @@ func updateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s1.updateSession(&s2)
-	d, err := json.Marshal(s1)
+
+	s2.updateSession(&s1)
+
+	d, err := json.Marshal(s2)
 	if err != nil {
 		logger.Error("Session metadata could not be encoded to JSON")
 		http.Error(w, "Failed to marshal JSON", http.StatusInternalServerError)
