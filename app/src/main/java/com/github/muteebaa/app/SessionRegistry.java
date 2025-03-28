@@ -46,8 +46,6 @@ public class SessionRegistry {
             return "";
         }
 
-        System.out.println(resp.body());
-
         return gson.fromJson(resp.body(), String.class);
     }
 
@@ -206,7 +204,7 @@ public class SessionRegistry {
     }
 
     private static Builder buildRegistryReq(String path) {
-        String registryAddr = "http://localhost:12020";
+        String registryAddr = "https://8df7-136-159-213-26.ngrok-free.app";
         URI uri = URI.create(registryAddr + path);
         return HttpRequest.newBuilder(uri)
                 .header("Content-Type", "application/json");
