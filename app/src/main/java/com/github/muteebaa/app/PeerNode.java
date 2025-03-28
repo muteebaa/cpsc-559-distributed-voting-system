@@ -46,7 +46,6 @@ public class PeerNode {
     private volatile boolean leaderToken;
     private long lastHeartbeatTime = System.currentTimeMillis(); // Track last heartbeat
     private boolean running = false; // wether or not this node is running in the election
-    // private boolean bullied = false;
     private volatile boolean bullied = false;// wether or not this node has been bullied
     private String voteBuffer = null;
 
@@ -250,17 +249,14 @@ public class PeerNode {
     }
 
     public String getMyIp() {
-        // try {
-        // // Get the local host (your machine's IP address)
-        // String myIp = InetAddress.getLocalHost().getHostAddress();
-        // // System.out.println("My IP Address: " + myIp);
+        try {
+            String myIp = InetAddress.getLocalHost().getHostAddress();
 
-        // return myIp;
-        // } catch (UnknownHostException e) {
-        // System.err.println("Could not determine IP address: " + e.getMessage());
-        // }
-        return "192.168.196.181";
-        // "192.168.1.80";
+            return myIp;
+        } catch (UnknownHostException e) {
+            System.err.println("Could not determine IP address: " + e.getMessage());
+        }
+        return null;
     }
 
     /**
@@ -763,17 +759,4 @@ public class PeerNode {
 
     }
 
-    // private void waitForResponse(int timeout) {
-    // try {
-    // Thread.sleep(timeout);
-    // } catch (InterruptedException e) {
-    // Thread.currentThread().interrupt();
-    // }
-
-    // // If still running and no leader message, restart election
-    // if (this.running && !hasLeaderToken()) {
-    // System.out.println("Node " + nodeId + " received no response. Declaring
-    // itself as leader.");
-    // }
-    // }
 }
