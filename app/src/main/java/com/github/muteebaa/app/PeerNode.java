@@ -58,18 +58,17 @@ public class PeerNode {
     /**
      * Initializes a new PeerNode instance.
      *
-     * @param port   The port the peer listens on.
-     * @param nodeId The unique identifier for this node.
+     * @param port The port the peer listens on.
      */
     public PeerNode(int port) {
         this.nodeComm = new NodeCommunication();
         this.port = port;
-        this.nodeId = 1;
+        this.nodeId = 1; // updated by the leader upon registration
         this.peerNodes = new HashMap<Number, String>();
         this.voteTally = new HashMap<>();
         try {
             this.uuid = loadUUID();
-            if (this.uuid == null) { // Extra safety check
+            if (this.uuid == null) {
                 throw new IllegalStateException("UUID loading failed, received null.");
             }
         } catch (FileNotFoundException e) {
@@ -104,6 +103,13 @@ public class PeerNode {
                 BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
                 reader.readLine(); // Skip the header
                 uuid = reader.readLine().trim();
+            }
+            // For macOS
+            else if (System.getProperty("os.name").toLowerCase().contains("mac")) {
+                Process process = Runtime.getRuntime()
+                        .exec("ioreg -rd1 -c IOPlatformExpertDevice | awk '/IOPlatformUUID/ {print $3}'");
+                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                uuid = reader.readLine().replace("\"", "").trim();
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -246,16 +252,17 @@ public class PeerNode {
     }
 
     public String getMyIp() {
-        try {
-            // Get the local host (your machine's IP address)
-            String myIp = InetAddress.getLocalHost().getHostAddress();
-            // System.out.println("My IP Address: " + myIp);
+        // try {
+        // // Get the local host (your machine's IP address)
+        // String myIp = InetAddress.getLocalHost().getHostAddress();
+        // // System.out.println("My IP Address: " + myIp);
 
-            return myIp;
-        } catch (UnknownHostException e) {
-            System.err.println("Could not determine IP address: " + e.getMessage());
-        }
-        return null;
+        // return myIp;
+        // } catch (UnknownHostException e) {
+        // System.err.println("Could not determine IP address: " + e.getMessage());
+        // }
+        return "192.168.196.181";
+        // "192.168.1.80";
     }
 
     /**
@@ -298,8 +305,6 @@ public class PeerNode {
         // start the heartbeat and monitor
         this.startHeartbeat();
         this.startHeartbeatMonitor();
-
-        // TODO: Handle leader's response - do we need to?
     }
 
     /**
@@ -314,7 +319,6 @@ public class PeerNode {
 
             // leader should set the id of the new peer, we will start with 1
             // get the highest id in the peerNodes map (Map<Number, String> peerNodes)
-            // Get the highest key in the peerNodes map
             int highestCurrentId = peerNodes.keySet().stream()
                     .mapToInt(Number::intValue) // Convert Number to int
                     .max() // Get the maximum value
@@ -325,7 +329,7 @@ public class PeerNode {
             // Convert peerNodes to a formatted string with IDs and IPs
             String peerList = peerNodes.entrySet().stream()
                     .map(entry -> entry.getKey() + "," + entry.getValue()) // Format each entry as "id:ip"
-                    .collect(Collectors.joining("-")); // Join with commas
+                    .collect(Collectors.joining("-")); // Join with -
 
             peerNodes.put(newId, peer);
 
@@ -709,7 +713,7 @@ public class PeerNode {
             nodeComm.broadcastMessage("ELECTION:" + this.nodeId, biggerIds.values());
 
             // /* check if there are bigger guys out there */
-            // wait for T time units // waitForResponse(TIMEOUT);
+            // wait for T time units
             synchronized (this) {
                 while (!this.bullied) {
                     try {
@@ -737,24 +741,7 @@ public class PeerNode {
                     // peerNodes.values());
                 }
             }
-            // while (!this.bullied) {
-            // try {
-            // Thread.sleep(TIMEOUT);
-            // } catch (InterruptedException e) {
-            // Thread.currentThread().interrupt();
-            // }
-            // // if no response /* time out, no response */
-            // if (this.running && !hasLeaderToken()) {
-            // System.out.println("Node " + nodeId + " received no response. Declaring
-            // myself as leader.");
-            // // leaderi = i /* I am the leader */
-            // setLeaderToken(true);
-            // // send leader(i) to all Pj, where j ≠ i
-            // nodeComm.broadcastMessage("LEADER:" + getMyIp() + "," + this.port,
-            // peerNodes.values());
 
-            // }
-            // }
             // else /* bully is received */
             while (this.leaderAddress == null) {
 
@@ -767,10 +754,6 @@ public class PeerNode {
                 //// if no leader(k) message Initiate_Election(i)
                 initiateElection();
             }
-
-            //// else (leader(k) from k)
-            ////// leaderi = k
-            ////// runningi = false /* leader elected */
 
             this.running = false;
         }
