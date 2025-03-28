@@ -18,8 +18,16 @@ public class StartVoting {
     private static final Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
+        System.out.println(ANSI_PURPLE + "Welcome to the voting system!" + ANSI_RESET);
+
+        while (true) {
+            displayOptions();
+        }
+    }
+
+    private static void displayOptions() {
         System.out.println(ANSI_PURPLE
-                + "1. Start a new election\n2. Join an existing election\n3. View available sessions" + ANSI_RESET);
+                + "\n1. Start a new election\n2. Join an existing election\n3. View all sessions" + ANSI_RESET);
         System.out.print(ANSI_PURPLE + "Enter choice: " + ANSI_RESET);
         int choice = scanner.nextInt();
         scanner.nextLine(); // Consume newline
@@ -36,6 +44,7 @@ public class StartVoting {
                 break;
             default:
                 System.out.println(ANSI_PURPLE + "Invalid choice. Please enter 1, 2, or 3." + ANSI_RESET);
+                displayOptions();
         }
     }
 
@@ -54,8 +63,8 @@ public class StartVoting {
         // Generate session code and store it
         String sessionCode = peer.startNewSession(options);
 
-        System.out.println("\nSession created! Share this code: " + sessionCode);
-        System.out.println("Voting options: " + options);
+        System.out.println(ANSI_PURPLE + "\nSession created! Share this code: " + sessionCode + ANSI_RESET);
+        System.out.println(ANSI_PURPLE + "Voting options: " + options + ANSI_RESET);
 
         peer.registerWithLeader(peer.getMyIp() + ":" + myPort); // adds us to the peerNodes list, and give us an id
 
@@ -72,6 +81,17 @@ public class StartVoting {
         if (sessions.containsKey(sessionCode)) {
             /// get the session entry
             String sessionDetails = sessions.get(sessionCode);
+
+            String sessionStatus = sessionDetails.substring(sessionDetails.lastIndexOf(",") + 1);
+            if (sessionStatus.equals("ended")) {
+                System.out.println(ANSI_PURPLE + "Sorry, this session has already ended! Please pick another option:"
+                        + ANSI_RESET);
+                return;
+            } else if (sessionStatus.equals("started")) {
+                System.out.println(ANSI_PURPLE
+                        + "Sorry, this session is already in progress! Please pick another option:" + ANSI_RESET);
+                return;
+            }
             // everything before the first comma in sessionDetails
             String leaderAddress = sessionDetails.split(",")[0];
 

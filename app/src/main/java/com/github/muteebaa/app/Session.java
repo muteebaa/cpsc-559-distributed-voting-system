@@ -38,6 +38,6 @@ public class Session {
 
     @Override
     public String toString() {
-        return String.format("[%s @ %s:%d] Options: %s", id, host, port, options);
+        return String.format("[%s @ %s:%d] Options: %s, Status: %s", id, host, port, options, status);
     }
 }
