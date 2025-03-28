@@ -146,6 +146,29 @@ public class SessionRegistry {
         return session.options;
     }
 
+    public static String getSessionStatus(String sessionCode) {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest req = buildRegistryReq("/sessions/" + sessionCode).build();
+
+        HttpResponse<String> resp;
+        try {
+            // TODO: Handle failing status codes
+            resp = client.send(req, BodyHandlers.ofString());
+        } catch (InterruptedException e) {
+            // FIXME: Ignored exception
+            e.printStackTrace();
+            return null;
+        } catch (IOException e) {
+            // FIXME: Ignored exception
+            e.printStackTrace();
+            return null;
+        }
+
+        Gson gson = new Gson();
+        Session session = gson.fromJson(resp.body(), Session.class);
+        return session.status;
+    }
+
     public static boolean updateSession(String sessionCode, String newStatus, String newHost, Integer newPort) {
         HttpClient client = HttpClient.newHttpClient();
         Gson gson = new Gson();
@@ -166,9 +189,6 @@ public class SessionRegistry {
 
         String jsonPayload = gson.toJson(updateData);
 
-        // print debug payload
-        System.out.println("Payload: " + jsonPayload);
-
         HttpRequest req = buildRegistryReq("/sessions/" + sessionCode)
                 .method("PATCH", BodyPublishers.ofString(jsonPayload))
                 .header("Content-Type", "application/json")
@@ -177,10 +197,6 @@ public class SessionRegistry {
         HttpResponse<String> resp;
         try {
             resp = client.send(req, BodyHandlers.ofString());
-
-            // Print debug response
-            System.out.println("Response Code: " + resp.statusCode());
-            System.out.println("Response Body: " + resp.body());
 
             return resp.statusCode() == 200; // Assuming 200 means success
         } catch (InterruptedException | IOException e) {

@@ -43,8 +43,6 @@ public class PeerNode {
     private String uuid;
     private ConcurrentSkipListSet<String> uuidSet;
 
-    private volatile boolean votingStarted = false; // move this to registry for synch/consistency
-
     private volatile boolean leaderToken;
     private long lastHeartbeatTime = System.currentTimeMillis(); // Track last heartbeat
     private boolean running = false; // wether or not this node is running in the election
@@ -521,8 +519,7 @@ public class PeerNode {
         SessionRegistry.updateSession(this.sessionCode, null, leaderAddress.split(":")[0],
                 Integer.parseInt(leaderAddress.split(":")[1]));
 
-        // TODO: fetch the status from the session registry
-        if (!this.votingStarted) {
+        if (SessionRegistry.getSessionStatus(this.sessionCode).equals("waiting")) {
             this.waitForStartVoting();
         }
     }
@@ -585,7 +582,6 @@ public class PeerNode {
     }
 
     public void promptForVote() {
-        this.votingStarted = true;
         String options = SessionRegistry.getVotingOptions(sessionCode).toString();
         System.out.println(ANSI_PURPLE + "\nVoting started!" + ANSI_RESET);
         System.out.println(ANSI_PURPLE + "Voting options: " + options + ANSI_RESET);
@@ -618,7 +614,7 @@ public class PeerNode {
             if (input.equals("start")) {
                 SessionRegistry.updateSession(this.sessionCode, "started", null, null);
                 this.startVoting();
-                this.promptForVote(); // Prompt leader to vote
+                this.promptForVote(); // Prompt self to vote
                 break;
             }
             System.out.println(ANSI_PURPLE + "Invalid input. Type 'start' to begin." + ANSI_RESET);
