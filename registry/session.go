@@ -182,7 +182,6 @@ func addSession(w http.ResponseWriter, r *http.Request) {
 	logger := httplog.LogEntry(r.Context())
 	var s Session
 	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
 	if err := dec.Decode(&s); err != nil {
 		logger.Error("Session metadata could not be decoded")
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -247,7 +246,6 @@ func updateSession(w http.ResponseWriter, r *http.Request) {
 	logger := httplog.LogEntry(r.Context())
 	var s1 Session
 	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
 	if err := dec.Decode(&s1); err != nil {
 		logger.Error("Session metadata could not be decoded")
 		http.Error(w, err.Error(), http.StatusBadRequest)
