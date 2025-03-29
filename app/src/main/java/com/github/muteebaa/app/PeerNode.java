@@ -503,6 +503,9 @@ public class PeerNode {
      * when a new leader is elected use this
      */
     public void takeLeaderToken() {
+        if (this.leaderToken) {
+            return;
+        }
         this.leaderToken = true;
         // set leader address to my address
         this.leaderAddress = getMyIp() + ":" + this.port;
