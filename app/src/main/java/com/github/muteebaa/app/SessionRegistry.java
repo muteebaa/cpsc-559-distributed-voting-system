@@ -77,8 +77,8 @@ public class SessionRegistry {
             throw new RuntimeException("FIXME: I have made an incorrect assumption");
         }
 
-        Integer port = Integer.parseInt(address.split(":")[1]);
-        return saveSession(hostIp.getHostAddress(), port, options);
+        int port = Integer.parseInt(address.split(":")[1]);
+        return saveSession(hostIp.getHostAddress(), port, options, "");
     }
 
     public static Map<String, String> loadSessions() {
