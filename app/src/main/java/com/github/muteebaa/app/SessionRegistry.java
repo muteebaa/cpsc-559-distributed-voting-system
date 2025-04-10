@@ -2,7 +2,8 @@ package com.github.muteebaa.app;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-
+import javax.swing.*;
+import java.awt.*;  // Add this line with your other imports
 import java.io.*;
 import java.net.InetAddress;
 import java.net.URI;
@@ -30,12 +31,15 @@ public class SessionRegistry {
     // FIXME: Hack to persist options list
     public static String _options;
 
+    private static JDialog sessionsDialog;
+    private static JTextArea sessionsTextArea;
+
     private static HttpClient client = HttpClient.newHttpClient();
     private static final List<String> registryServers = List.of(
             // FIXME: Set actual ngrok addresses
-            "https://8df7-136-159-213-26.ngrok-free.app",
-            "https://8df7-136-159-213-26.ngrok-free.app",
-            "https://8df7-136-159-213-26.ngrok-free.app"
+            "https://cc6b-136-159-213-33.ngrok-free.app",
+            "https://cc6b-136-159-213-33.ngrok-free.app",
+            "https://cc6b-136-159-213-33.ngrok-free.app"
             );
 
     private static String currRegistry = registryServers.get(0);
@@ -110,30 +114,58 @@ public class SessionRegistry {
         return sessions;
     }
 
-    public static void displayAvailableSessions() {
-        HttpRequest req = buildRegistryReq("/sessions").build();
-        HttpResponse<String> resp;
-        try {
-            // TODO: Handle failing status codes
-            resp = sendWithRetry(req, BodyHandlers.ofString());
-        } catch (InterruptedException | IOException e) {
-            // FIXME: Ignored exception
-            e.printStackTrace();
-            return;
-        }
+    public static void displayAvailableSessions(JPanel sessionListPanel) {
+        new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                HttpRequest req = buildRegistryReq("/sessions").build();
+                HttpResponse<String> resp = sendWithRetry(req, BodyHandlers.ofString());
 
-        Gson gson = new Gson();
-        TypeToken<Collection<Session>> collectionType = new TypeToken<Collection<Session>>() {
-        };
-        Collection<Session> sessionList = gson.fromJson(resp.body(), collectionType);
+                Gson gson = new Gson();
+                Collection<Session> sessions = gson.fromJson(resp.body(),
+                    new TypeToken<Collection<Session>>(){}.getType());
 
-        if (sessionList.isEmpty()) {
-            System.out.println("No available sessions found.");
-        } else {
-            System.out.println("Available sessions: ");
-            sessionList.forEach(System.out::println);
-        }
+                SwingUtilities.invokeLater(() -> {
+                    sessionListPanel.removeAll();
+
+                    if (sessions.isEmpty()) {
+                        JLabel noSessionsLabel = new JLabel("No sessions available");
+                        noSessionsLabel.setFont(new Font("Arial", Font.PLAIN, 16));
+                        sessionListPanel.add(noSessionsLabel);
+                    } else {
+                        for (Session s : sessions) {
+                            String raw = s.toString();
+                            String code = raw.substring(raw.indexOf('[') + 1, raw.indexOf('@')).trim();
+                            String ip = raw.substring(raw.indexOf('@') + 1, raw.indexOf(']')).trim();
+                            String options = raw.substring(raw.indexOf("Options:") + 8, raw.indexOf("],") + 1).trim();
+                            String status = raw.substring(raw.lastIndexOf("Status:") + 7).trim();
+
+                            JPanel card = new JPanel();
+                            card.setLayout(new GridLayout(0, 1));
+                            card.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+                            card.setBackground(new Color(245, 245, 245));
+                            card.setPreferredSize(new Dimension(400, 100));
+                            card.setMaximumSize(new Dimension(500, 120));
+
+                            card.add(new JLabel("Status: " + status));
+                            card.add(new JLabel("Code: " + code));
+                            card.add(new JLabel("Leader IP: " + ip));
+                            card.add(new JLabel("Voting Options: " + options));
+
+                            sessionListPanel.add(card);
+                            sessionListPanel.add(Box.createVerticalStrut(10));
+                        }
+                    }
+
+                    sessionListPanel.revalidate();
+                    sessionListPanel.repaint();
+                });
+
+                return null;
+            }
+        }.execute();
     }
+
 
     public static List<String> getVotingOptions(String sessionCode) {
         HttpRequest req = buildRegistryReq("/sessions/" + sessionCode).build();

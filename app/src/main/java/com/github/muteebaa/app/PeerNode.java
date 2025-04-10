@@ -1,5 +1,6 @@
 package com.github.muteebaa.app;
 
+import java.util.function.Consumer;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -12,6 +13,9 @@ import java.nio.file.FileSystemException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.List;  // Import the correct List interface from java.util
+import javax.swing.*;
+import java.awt.*;
 import java.util.stream.Collectors;
 import java.util.concurrent.ConcurrentSkipListSet;
 
@@ -30,6 +34,10 @@ public class PeerNode {
     public static final String ANSI_PURPLE = "\u001B[35m"; // CLI
     public static final String ANSI_CYAN = "\u001B[36m"; // election
     public static final String ANSI_WHITE = "\u001B[37m";
+
+    private Consumer<String> heartbeatStatusConsumer;
+    private Consumer<String> statusMessageConsumer;
+    private Consumer<String> guiMessageConsumer;
 
     private static final Scanner scanner = new Scanner(System.in);
     private final NodeCommunication nodeComm;
@@ -208,22 +216,36 @@ public class PeerNode {
         new Thread(() -> nodeComm.startServer(port, this::handleMessage)).start();
     }
 
+    public void setHeartbeatStatusConsumer(Consumer<String> consumer) {
+        this.heartbeatStatusConsumer = consumer;
+    }
+
+    private void notifyHeartbeat(String message) {
+        if (heartbeatStatusConsumer != null) {
+            SwingUtilities.invokeLater(() -> heartbeatStatusConsumer.accept(message));
+        }
+    }
+    
     private void startHeartbeat() {
         new Thread(() -> {
-            while (true) {
-                // Only send if I'm the leader
+            while (!Thread.currentThread().isInterrupted()) {
                 if (this.hasLeaderToken()) {
-                    System.out.println(ANSI_RED + "Sending heartbeat..." + ANSI_RESET);
+                    String message = "Sending heartbeat ... ❤️";
+                    System.out.println(ANSI_RED + message + ANSI_RESET);
+                    notifyHeartbeat(message);
+                    
                     nodeComm.broadcastMessage("HEARTBEAT", peerNodes.values());
                     try {
-                        Thread.sleep(3000); // Send every 3 seconds
+                        Thread.sleep(3000);
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
+                        break;
                     }
                 }
             }
         }).start();
     }
+    
 
     private void startHeartbeatMonitor() {
         new Thread(() -> {
@@ -306,92 +328,79 @@ public class PeerNode {
      *
      * @param message The received message.
      */
-    public void handleMessage(String message) {
+    // Add this field to PeerNode class
+    // Add this setter method
+    public void setStatusMessageConsumer(Consumer<String> consumer) {
+        this.statusMessageConsumer = consumer;
+    }
 
+    // Helper method to send messages to GUI
+    private void sendToGUI(String message) {
+        if (statusMessageConsumer != null) {
+            SwingUtilities.invokeLater(() -> statusMessageConsumer.accept(message));
+        }
+    }
+
+    // Modified handleMessage method
+    public void handleMessage(String message) {
         if (message.startsWith("REGISTER:")) {
             String peer = message.substring(9);
-
-            // leader should set the id of the new peer, we will start with 1
-            // get the highest id in the peerNodes map (Map<Number, String> peerNodes)
             int highestCurrentId = peerNodes.keySet().stream()
-                    .mapToInt(Number::intValue) // Convert Number to int
-                    .max() // Get the maximum value
-                    .orElse(0); // Default value if the map is empty
+                    .mapToInt(Number::intValue)
+                    .max()
+                    .orElse(0);
 
             int newId = highestCurrentId + 1;
-
-            // Convert peerNodes to a formatted string with IDs and IPs
             String peerList = peerNodes.entrySet().stream()
-                    .map(entry -> entry.getKey() + "," + entry.getValue()) // Format each entry as "id:ip"
-                    .collect(Collectors.joining("-")); // Join with -
+                    .map(entry -> entry.getKey() + "," + entry.getValue())
+                    .collect(Collectors.joining("-"));
 
             peerNodes.put(newId, peer);
-
             nodeComm.broadcastMessage("UPDATE_NEW_PEER:" + newId + "," + peer + "-" + peerList, peerNodes.values());
 
-            System.out.println(ANSI_GREEN + "My peer list: " + peerNodes + ANSI_RESET);
-
+            sendToGUI("New peer registered. Peer list: " + peerNodes);
             nodeComm.connectToNode(peer.split(":")[0], Integer.parseInt(peer.split(":")[1]));
             nodeComm.sendMessage("ACK: You are successfully registered.", nodeComm.getClientSocket());
         }
-
         else if (message.equals("HEARTBEAT")) {
-            System.out.println(ANSI_RED + "Heartbeat received." + ANSI_RESET);
-            lastHeartbeatTime = System.currentTimeMillis(); // Reset timer
-        } else if (message.startsWith("UPDATE_NEW_PEER:")) {
-            // System.out.println("New peer message received: " + message);
-            // System.out.println("My peer list before update: " + peerNodes);
-
-            // Extract data from message
+            sendToGUI("Heartbeat received from leader");
+            lastHeartbeatTime = System.currentTimeMillis();
+        } 
+        else if (message.startsWith("UPDATE_NEW_PEER:")) {
             String newPeerData = message.substring("UPDATE_NEW_PEER:".length()).trim();
             String[] parts = newPeerData.split("-");
 
-            // System.out.println("Parts: " + Arrays.toString(parts));
-
-            // if (parts.length < 2) {
-            // System.out.println("Invalid peer update message format.");
-            // return;
-            // }
-
-            // Extract new peer info
-            // String newPeerIp = parts[0];
-            // int newPeerId = Integer.parseInt(parts[1]);
-
-            // Clear and update peerNodes
             peerNodes.clear();
-            for (int i = 0; i < parts.length; i++) { // Start from index 2 to skip newPeer info
+            for (int i = 0; i < parts.length; i++) {
                 String[] idAndIp = parts[i].split(",");
                 if (idAndIp.length == 2) {
                     int peerId = Integer.parseInt(idAndIp[0]);
                     String peerIp = idAndIp[1];
                     peerNodes.put(peerId, peerIp);
 
-                    // Check if the new peer is this node
                     if (peerIp.equals(getMyIp() + ":" + port)) {
                         this.nodeId = peerId;
                     }
-
                 }
             }
-
-            System.out.println(ANSI_GREEN + "Updated peer list: " + peerNodes + ANSI_RESET);
-        } else if (message.startsWith("ACK:")) {
+            sendToGUI("Updated peer list: " + peerNodes);
+        } 
+        else if (message.startsWith("ACK:")) {
             synchronized (this) {
                 acknowledgment = true;
-                notifyAll(); // Notify waiting threads
+                notifyAll();
             }
-            System.out.println();
-            System.out.println(ANSI_YELLOW + message + ANSI_RESET);
-        } else if (message.startsWith("VOTE:")) {
+            sendToGUI(message.substring(4));
+        } 
+        else if (message.startsWith("VOTE:")) {
             String[] parts = message.split(":");
             int nodeId = Integer.parseInt(parts[1]);
-
             String address = peerNodes.get(nodeId);
             String host = address.split(":")[0];
             int port = Integer.parseInt(address.split(":")[1]);
-
             String vote = parts[2];
             String incomingUUID = parts[3];
+
             if (!(this.uuidSet.contains(incomingUUID))) {
                 this.uuidSet.add(incomingUUID);
                 updateVoteTally(vote);
@@ -399,64 +408,61 @@ public class PeerNode {
                     nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + incomingUUID + ":" + vote, peerNodes.values());
                     nodeComm.connectToNode(host, port);
                     nodeComm.sendMessage("ACK: Your vote was successfully counted.", nodeComm.getClientSocket());
+                    sendToGUI("Vote counted: " + vote);
                 }
             } else {
                 nodeComm.connectToNode(host, port);
                 nodeComm.sendMessage("DUPLICATE: A vote has already been cast with your UUID.",
                         nodeComm.getClientSocket());
+                sendToGUI("Duplicate vote detected from UUID: " + incomingUUID);
             }
-
-        } else if (message.startsWith("DUPLICATE:")) {
-            System.out.println(ANSI_PURPLE
-                    + "A duplicate vote was detected with your UUID. The most recent vote was not submitted."
-                    + ANSI_RESET);
-
-        } else if (message.startsWith("UPDATE_VOTE_TALLY:")) {
+        } 
+        else if (message.startsWith("DUPLICATE:")) {
+            sendToGUI("Duplicate vote - your vote was not submitted");
+        } 
+        else if (message.startsWith("UPDATE_VOTE_TALLY:")) {
             String vote = message.substring(54).trim();
             String uuid = message.substring(18, 54).trim();
             updateVoteTally(vote);
             updateUUID(uuid);
-        } else if (message.startsWith("START_VOTING")) {
+            sendToGUI("Vote tally updated: " + vote);
+        } 
+        else if (message.startsWith("START_VOTING")) {
+            sendToGUI("Voting has started!");
             new Thread(this::promptForVote).start();
-        } else if (message.startsWith("VOTING_ENDED:")) {
-            System.out.println();
-            System.out.println(message.substring(13));
-        } else if (message.startsWith("ELECTION:")) {
-            System.out.println(ANSI_GREEN + "Election message received: " + message + ANSI_RESET);
-            int idOfNodeRunning = Integer.parseInt(
-                    message.substring("ELECTION:".length()));
+        } 
+        else if (message.startsWith("VOTING_ENDED:")) {
+            sendToGUI("Voting ended: " + message.substring(13));
+        } 
+        else if (message.startsWith("ELECTION:")) {
+            int idOfNodeRunning = Integer.parseInt(message.substring("ELECTION:".length()));
+            sendToGUI("Election initiated by node: " + idOfNodeRunning);
 
             if (this.nodeId > idOfNodeRunning) {
-                // get the node's address and bully it
                 String nodesAddress = this.peerNodes.get(idOfNodeRunning);
                 String nodeIp = nodesAddress.split(":")[0];
                 int nodePort = Integer.parseInt(nodesAddress.split(":")[1]);
 
-                System.out.println(
-                        ANSI_CYAN + "Bullying node " + idOfNodeRunning + " at " + nodeIp + ":" + nodePort + ANSI_RESET);
+                sendToGUI("Bullying node " + idOfNodeRunning + " at " + nodeIp + ":" + nodePort);
                 nodeComm.connectToNode(nodeIp, nodePort);
                 nodeComm.sendMessage("BULLY", nodeComm.getClientSocket());
 
-                // am i already the leader?
                 if (!this.hasLeaderToken()) {
                     this.initiateElection();
                 }
             }
-        } else if (message.startsWith("BULLY")) {
-            System.out.println(ANSI_CYAN + "Bully message received: " + message + ANSI_RESET);
-            // this.bullied = true;
-
+        } 
+        else if (message.startsWith("BULLY")) {
+            sendToGUI("Received bully message - entering election");
             synchronized (this) {
                 this.bullied = true;
                 notifyAll();
             }
-
-        } else if (message.startsWith("LEADER:")) {
-            System.out.println(ANSI_CYAN + "Leader message received: " + message + ANSI_RESET);
+        } 
+        else if (message.startsWith("LEADER:")) {
             String newLeadersId = message.substring(7);
-
             String newLeaderIp = peerNodes.get(Integer.parseInt(newLeadersId));
-
+            sendToGUI("New leader elected: Node " + newLeadersId + " at " + newLeaderIp);
             setLeaderAddress(newLeaderIp);
         }
     }
@@ -585,58 +591,74 @@ public class PeerNode {
     }
 
     public void promptForVote() {
-        String options = SessionRegistry.getVotingOptions(sessionCode).toString();
-        System.out.println(ANSI_PURPLE + "\nVoting started!" + ANSI_RESET);
-        System.out.println(ANSI_PURPLE + "Voting options: " + options + ANSI_RESET);
+        String optionsString = SessionRegistry.getVotingOptions(sessionCode).toString();
 
-        System.out.println(ANSI_PURPLE + "Enter your vote: " + ANSI_RESET);
-        if (scanner.hasNextLine()) {
-            String vote = scanner.nextLine();
-            sendVoteToLeader(vote);
-            System.out.println(ANSI_PURPLE + "Vote submitted: " + vote + ANSI_RESET);
-            if (!this.leaderToken) {
-                System.out.println("We will let you know when voting ends.");
-            }
-            while (true) {
-                // if i ever get the leader token, i will end the voting
-                if (this.leaderToken) {
-                    this.waitForEndVoting();
-                    return;
+        // Trim the brackets if present
+        if (optionsString.startsWith("[") && optionsString.endsWith("]")) {
+            optionsString = optionsString.substring(1, optionsString.length() - 1);
+        }
+        List<String> options = Arrays.stream(optionsString.split(",")).map(String::trim).collect(Collectors.toList());
+
+        JFrame frame = new JFrame("Vote Now");
+        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        frame.setSize(300, 200);
+        frame.setLayout(new FlowLayout());
+
+        JLabel messageLabel = new JLabel("Voting started! Choose an option:");
+        frame.add(messageLabel);
+
+        for (String option : options) {
+            JButton button = new JButton(option);
+            button.addActionListener(e -> {
+                sendVoteToLeader(option);
+                if (!leaderToken) {
+                    sendToGUI("We will let you know when voting ends.");
                 }
-            }
-        } else {
-            System.out.println("Input stream closed. Cannot receive votes.");
+                frame.dispose(); // Close voting window after vote
+            });
+            frame.add(button);
+        }
+
+        frame.setVisible(true);
+    }
+
+    public void setGuiMessageConsumer(Consumer<String> consumer) {
+        this.guiMessageConsumer = consumer;
+    }
+    
+    private void sendToGui(String message) {
+        if (guiMessageConsumer != null) {
+            SwingUtilities.invokeLater(() -> guiMessageConsumer.accept(message));
         }
     }
 
     public void waitForStartVoting() {
-        while (true) {
-            System.out.println(ANSI_PURPLE + "Enter 'start' to begin voting: " + ANSI_RESET);
-            String input = scanner.nextLine().trim().toLowerCase();
 
-            if (input.equals("start")) {
-                SessionRegistry.updateSession(this.sessionCode, "started", null, null);
-                this.startVoting();
-                this.promptForVote(); // Prompt self to vote
-                break;
+        SwingUtilities.invokeLater(() -> {
+            String input = JOptionPane.showInputDialog(
+                null,
+                "Type 'start' to begin voting:",
+                "Start Voting",
+                JOptionPane.PLAIN_MESSAGE);
+        
+            if (input != null && input.trim().equalsIgnoreCase("start")) {
+                new Thread(() -> {
+                    SessionRegistry.updateSession(this.sessionCode, "started", null, null);
+                    this.startVoting();
+                    this.promptForVote();
+                }).start();
+            } else {
+                sendToGui("Invalid input. Type 'start' to begin.");
             }
-            System.out.println(ANSI_PURPLE + "Invalid input. Type 'start' to begin." + ANSI_RESET);
-        }
+        });
     }
 
-    private void waitForEndVoting() {
-        while (true) {
-            System.out.print(ANSI_PURPLE + "Enter 'end' to stop voting: " + ANSI_RESET);
-            String input = scanner.nextLine().trim().toLowerCase();
-
-            if (input.equals("end")) {
-                SessionRegistry.updateSession(this.sessionCode, "ended", null, null);
-
-                this.endVoting();
-                break;
-            }
-            System.out.println(ANSI_PURPLE + "Invalid input. Type 'end' to end voting." + ANSI_RESET);
-        }
+    public void startVotingButtonClicked(){
+        new Thread(() -> {
+                    SessionRegistry.updateSession(this.sessionCode, "started", null, null);
+                    this.startVoting();
+                    this.promptForVote();
+                }).start();
     }
 
     /**

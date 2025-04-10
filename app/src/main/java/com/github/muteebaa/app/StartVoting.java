@@ -1,126 +1,353 @@
 package com.github.muteebaa.app;
 
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Map;
-import java.util.Scanner;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 public class StartVoting {
-    // ANSI color codes for console output
-    public static final String ANSI_RESET = "\u001B[0m";
-    public static final String ANSI_BLACK = "\u001B[30m";
-    public static final String ANSI_RED = "\u001B[31m"; // heartbeat
-    public static final String ANSI_GREEN = "\u001B[32m";
-    public static final String ANSI_YELLOW = "\u001B[33m"; // vote submission
-    public static final String ANSI_BLUE = "\u001B[34m";
-    public static final String ANSI_PURPLE = "\u001B[35m"; // CLI
-    public static final String ANSI_CYAN = "\u001B[36m"; // election
-    public static final String ANSI_WHITE = "\u001B[37m";
-
-    private static final Scanner scanner = new Scanner(System.in);
-    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private static ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private static ScheduledFuture<?> beatHandle;
+    private static PeerNode currentPeer;
+    private static JFrame mainFrame;
+    private static CardLayout cardLayout;
+    private static JPanel cardPanel;
+    private static JTextArea sessionsTextArea;
+    private static JTextArea statusTextArea;
+    private static JPanel buttonPanel; // Added for waiting panel button access
+    private static JPanel sessionListPanel; // To update later in displayAvailableSessions()
 
     public static void main(String[] args) {
-        System.out.println(ANSI_PURPLE + "Welcome to the voting system!" + ANSI_RESET);
-
-        while (true) {
-            displayOptions();
-        }
+        SwingUtilities.invokeLater(() -> {
+            createAndShowGUI();
+        });
     }
 
-    private static void displayOptions() {
-        System.out.println(ANSI_PURPLE
-                + "\n1. Start a new election\n2. Join an existing election\n3. View all sessions" + ANSI_RESET);
-        System.out.print(ANSI_PURPLE + "Enter choice: " + ANSI_RESET);
-        int choice = scanner.nextInt();
-        scanner.nextLine(); // Consume newline
+    private static void createAndShowGUI() {
+        mainFrame = new JFrame("Voting System");
+        mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        mainFrame.setSize(800, 600);
 
-        switch (choice) {
-            case 1:
-                startNewElection();
-                break;
-            case 2:
-                joinExistingElection();
-                break;
-            case 3:
-                SessionRegistry.displayAvailableSessions();
-                break;
-            default:
-                System.out.println(ANSI_PURPLE + "Invalid choice. Please enter 1, 2, or 3." + ANSI_RESET);
-                displayOptions();
-        }
+        cardLayout = new CardLayout();
+        cardPanel = new JPanel(cardLayout);
+
+        JPanel mainMenuPanel = createMainMenuPanel();
+        JPanel newElectionPanel = createNewElectionPanel();
+        JPanel sessionsPanel = createSessionsPanel();
+        JPanel waitingPanel = createWaitingPanel();
+
+        cardPanel.add(mainMenuPanel, "MAIN");
+        cardPanel.add(newElectionPanel, "NEW_ELECTION");
+        cardPanel.add(sessionsPanel, "SESSIONS");
+        cardPanel.add(waitingPanel, "WAITING");
+
+        mainFrame.add(cardPanel);
+        mainFrame.setLocationRelativeTo(null);
+        mainFrame.setVisible(true);
     }
 
-    private static void startNewElection() {
-        System.out.println(ANSI_PURPLE + "\nStarting a new election!" + ANSI_RESET);
-        System.out.print(ANSI_PURPLE + "Enter your node's port number: " + ANSI_RESET);
-        int myPort = scanner.nextInt();
-        scanner.nextLine(); // Consume newlines
+    private static JPanel createMainMenuPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        PeerNode peer = new PeerNode(myPort);
-        peer.startPeer();
+        JLabel welcomeLabel = new JLabel("Welcome to the voting system!");
+        welcomeLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        welcomeLabel.setHorizontalAlignment(SwingConstants.CENTER);
 
-        System.out.print(ANSI_PURPLE + "Enter comma-separated voting options: " + ANSI_RESET);
-        String options = scanner.nextLine();
+        JPanel optionsPanel = new JPanel(new GridLayout(3, 1, 10, 10));
+        
+        JButton newElectionBtn = new JButton("1. Start a new election");
+        JButton joinElectionBtn = new JButton("2. Join an existing election");
+        JButton viewSessionsBtn = new JButton("3. View all sessions");
 
-        // Generate session code and store it
-        String sessionCode = peer.startNewSession(options);
+        newElectionBtn.addActionListener(e -> cardLayout.show(cardPanel, "NEW_ELECTION"));
+        joinElectionBtn.addActionListener(e -> showJoinElectionPanel());
+        viewSessionsBtn.addActionListener(e -> {
+            cardLayout.show(cardPanel, "SESSIONS");
+            SessionRegistry.displayAvailableSessions(sessionListPanel); // <-- this is the fix
+        });
 
-        System.out.println(ANSI_PURPLE + "\nSession created! Share this code: " + sessionCode + ANSI_RESET);
-        System.out.println(ANSI_PURPLE + "Voting options: " + options + ANSI_RESET);
+        optionsPanel.add(newElectionBtn);
+        optionsPanel.add(joinElectionBtn);
+        optionsPanel.add(viewSessionsBtn);
 
-        peer.registerWithLeader(peer.getMyIp() + ":" + myPort); // adds us to the peerNodes list, and give us an id
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridwidth = GridBagConstraints.REMAINDER;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(10, 0, 10, 0);
+        
+        panel.add(welcomeLabel, gbc);
+        panel.add(optionsPanel, gbc);
 
-        // Start new thread to periodically check registry server status
-        Runnable heartbeat = new SessionHeartbeat(peer);
-        beatHandle = scheduler.scheduleAtFixedRate(heartbeat, 10, 10, TimeUnit.SECONDS);
-
-        peer.waitForStartVoting();
+        return panel;
     }
 
-    private static void joinExistingElection() {
-        System.out.println(ANSI_PURPLE + "\nJoining an existing election!" + ANSI_RESET);
-        System.out.print(ANSI_PURPLE + "Enter session code: " + ANSI_RESET);
-        String sessionCode = scanner.nextLine();
+    private static JPanel createNewElectionPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        Map<String, String> sessions = SessionRegistry.loadSessions();
+        JLabel titleLabel = new JLabel("Start New Election");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 16));
+        
+        JLabel portLabel = new JLabel("Enter your node's port number:");
+        JTextField portField = new JTextField(15);
+        
+        JLabel optionsLabel = new JLabel("Enter comma-separated voting options:");
+        JTextField optionsField = new JTextField(15);
+        
+        JButton createBtn = new JButton("Create Session");
+        JButton backBtn = new JButton("Back to Main Menu");
 
-        if (sessions.containsKey(sessionCode)) {
-            /// get the session entry
-            String sessionDetails = sessions.get(sessionCode);
+        createBtn.addActionListener(e -> {
+    try {
+        int myPort = Integer.parseInt(portField.getText());
+        String options = optionsField.getText();
 
-            String sessionStatus = sessionDetails.substring(sessionDetails.lastIndexOf(",") + 1);
-            if (sessionStatus.equals("ended")) {
-                System.out.println(ANSI_PURPLE + "Sorry, this session has already ended! Please pick another option:"
-                        + ANSI_RESET);
-                return;
-            } else if (sessionStatus.equals("started")) {
-                System.out.println(ANSI_PURPLE
-                        + "Sorry, this session is already in progress! Please pick another option:" + ANSI_RESET);
-                return;
+        currentPeer = new PeerNode(myPort);
+    
+        // Unified message consumer for all status messages
+        Consumer<String> statusConsumer = message -> {
+            SwingUtilities.invokeLater(() -> {
+                String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                
+                // Color code different message types
+                if (message.contains("Heartbeat")) {
+                    statusTextArea.append("[" + timestamp + "] [HEARTBEAT] " + message + "\n");
+                } else if (message.contains("Vote") || message.contains("tally")) {
+                    statusTextArea.append("[" + timestamp + "] [VOTE] " + message + "\n");
+                } else if (message.contains("Election") || message.contains("Leader")) {
+                    statusTextArea.append("[" + timestamp + "] [ELECTION] " + message + "\n");
+                } else {
+                    statusTextArea.append("[" + timestamp + "] " + message + "\n");
+                }
+                
+                statusTextArea.setCaretPosition(statusTextArea.getDocument().getLength());
+            });
+        };
+
+        // Set up all consumers to use the same status handler
+        currentPeer.setStatusMessageConsumer(statusConsumer);
+        currentPeer.setHeartbeatStatusConsumer(statusConsumer);
+        currentPeer.setGuiMessageConsumer(statusConsumer);
+
+        currentPeer.startPeer();
+        String sessionCode = currentPeer.startNewSession(options);
+        currentPeer.registerWithLeader(currentPeer.getMyIp() + ":" + myPort);
+
+        statusTextArea.setText("Session created!\nShare this code: " + sessionCode + 
+                         "\nVoting options: " + options + 
+                         "\n\nWaiting for participants...");
+        cardLayout.show(cardPanel, "WAITING");
+
+        // Add Start Election button to waiting panel
+        JButton startElectionBtn = new JButton("Start Election");
+        startElectionBtn.addActionListener(ev -> {
+                currentPeer.startVotingButtonClicked();
+            
+        });
+
+        buttonPanel.add(startElectionBtn, 0);
+        buttonPanel.revalidate();
+        buttonPanel.repaint();
+
+    } catch (NumberFormatException ex) {
+        JOptionPane.showMessageDialog(mainFrame, 
+            "Please enter a valid port number", 
+            "Error", JOptionPane.ERROR_MESSAGE);
+    }
+});
+
+        backBtn.addActionListener(e -> cardLayout.show(cardPanel, "MAIN"));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridwidth = GridBagConstraints.REMAINDER;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 0, 5, 0);
+        
+        panel.add(titleLabel, gbc);
+        panel.add(portLabel, gbc);
+        panel.add(portField, gbc);
+        panel.add(optionsLabel, gbc);
+        panel.add(optionsField, gbc);
+        
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 2, 10, 0));
+        buttonPanel.add(createBtn);
+        buttonPanel.add(backBtn);
+        
+        panel.add(buttonPanel, gbc);
+        return panel;
+    }
+
+    private static void showJoinElectionPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        JLabel titleLabel = new JLabel("Join Existing Election");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 16));
+    
+        JLabel codeLabel = new JLabel("Enter session code:");
+        JTextField codeField = new JTextField(15);
+    
+        JLabel portLabel = new JLabel("Enter your node's port number:");
+        JTextField portField = new JTextField(15);
+    
+        JButton joinBtn = new JButton("Join Session");
+        JButton backBtn = new JButton("Back to Main Menu");
+
+        joinBtn.addActionListener(e -> {
+            String sessionCode = codeField.getText();
+            Map<String, String> sessions = SessionRegistry.loadSessions();
+
+            if (sessions.containsKey(sessionCode)) {
+                String sessionDetails = sessions.get(sessionCode);
+                String[] parts = sessionDetails.split(",");
+                String leaderAddress = parts[0];
+                String sessionStatus = parts.length > 1 ? parts[1] : "unknown";
+
+                if ("ended".equals(sessionStatus)) {
+                    JOptionPane.showMessageDialog(mainFrame, 
+                        "Sorry, this session has already ended!", 
+                        "Session Ended", 
+                        JOptionPane.ERROR_MESSAGE);
+                    return;
+                } else if ("started".equals(sessionStatus)) {
+                    JOptionPane.showMessageDialog(mainFrame, 
+                        "Sorry, this session is already in progress!", 
+                        "Session In Progress", 
+                        JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+
+                try {
+                    int myPort = Integer.parseInt(portField.getText());
+                
+                    currentPeer = new PeerNode(myPort);
+                
+                    currentPeer.setStatusMessageConsumer(status -> {
+                        SwingUtilities.invokeLater(() -> {
+                            String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                            statusTextArea.append("[" + timestamp + "] " + status + "\n");
+                            statusTextArea.setCaretPosition(statusTextArea.getDocument().getLength());
+                        });
+                    });
+
+                    currentPeer.setHeartbeatStatusConsumer(status -> {
+                        SwingUtilities.invokeLater(() -> {
+                            String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                            statusTextArea.append("[" + timestamp + "] HEARTBEAT: " + status + "\n");
+                            statusTextArea.setCaretPosition(statusTextArea.getDocument().getLength());
+                        });
+                    });
+
+                    currentPeer.setSessionCode(sessionCode);
+                    currentPeer.startPeer();
+                    currentPeer.registerWithLeader(leaderAddress);
+
+                    Runnable heartbeat = new SessionHeartbeat(currentPeer);
+                    beatHandle = scheduler.scheduleAtFixedRate(heartbeat, 10, 10, TimeUnit.SECONDS);
+
+                    statusTextArea.setText("Successfully joined session: " + sessionCode + 
+                                     "\nLeader: " + leaderAddress +
+                                     "\n\nWaiting for voting to start...");
+                    cardLayout.show(cardPanel, "WAITING");
+                
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(mainFrame, 
+                        "Please enter a valid port number", 
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            } else {
+                JOptionPane.showMessageDialog(mainFrame, 
+                    "Invalid session code!", 
+                    "Error", JOptionPane.ERROR_MESSAGE);
             }
-            // everything before the first comma in sessionDetails
-            String leaderAddress = sessionDetails.split(",")[0];
+        });
 
-            System.out.print(ANSI_PURPLE + "Enter your node's port number: " + ANSI_RESET);
-            int myPort = scanner.nextInt();
-            scanner.nextLine(); // Consume newlines
+        backBtn.addActionListener(e -> cardLayout.show(cardPanel, "MAIN"));
 
-            PeerNode peer = new PeerNode(myPort);
-            peer.setSessionCode(sessionCode);
-            peer.startPeer();
-            peer.registerWithLeader(leaderAddress);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridwidth = GridBagConstraints.REMAINDER;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 0, 5, 0);
+    
+        panel.add(titleLabel, gbc);
+        panel.add(codeLabel, gbc);
+        panel.add(codeField, gbc);
+        panel.add(portLabel, gbc);
+        panel.add(portField, gbc);
+    
+        JPanel buttonPanel = new JPanel(new GridLayout(1, 2, 10, 0));
+        buttonPanel.add(joinBtn);
+        buttonPanel.add(backBtn);
+    
+        panel.add(buttonPanel, gbc);
 
-            // Start new thread to periodically check registry server status
-            Runnable heartbeat = new SessionHeartbeat(peer);
-            beatHandle = scheduler.scheduleAtFixedRate(heartbeat, 10, 10, TimeUnit.SECONDS);
+        cardPanel.add(panel, "JOIN_ELECTION");
+        cardLayout.show(cardPanel, "JOIN_ELECTION");
+    }
 
-            System.out.println(ANSI_PURPLE + "Waiting for leader to start voting..." + ANSI_RESET);
-        } else {
-            System.out.println(ANSI_PURPLE + "Invalid session code!" + ANSI_RESET);
-        }
+    private static JPanel createSessionsPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+
+        sessionListPanel = new JPanel();
+        sessionListPanel.setLayout(new BoxLayout(sessionListPanel, BoxLayout.Y_AXIS));
+
+        JScrollPane scrollPane = new JScrollPane(sessionListPanel);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
+
+        JButton backButton = new JButton("Back to Main Menu");
+        backButton.addActionListener(e -> cardLayout.show(cardPanel, "MAIN"));
+
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.add(backButton);
+
+        panel.add(scrollPane, BorderLayout.CENTER);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
+
+        // Call this here or wherever appropriate
+        SessionRegistry.displayAvailableSessions(sessionListPanel);
+
+        return panel;
+    }
+
+    private static JPanel createWaitingPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+    
+        statusTextArea = new JTextArea();
+        statusTextArea.setEditable(false);
+        statusTextArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        JScrollPane scrollPane = new JScrollPane(statusTextArea);
+    
+        buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+    
+        JButton clearButton = new JButton("Clear Messages");
+        clearButton.addActionListener(e -> statusTextArea.setText(""));
+    
+        JButton cancelButton = new JButton("Cancel");
+        cancelButton.addActionListener(e -> {
+            if (beatHandle != null) {
+                beatHandle.cancel(true);
+            }
+            if (currentPeer != null) {
+                currentPeer.setStatusMessageConsumer(null);
+            }
+            cardLayout.show(cardPanel, "MAIN");
+        });
+    
+        buttonPanel.add(clearButton);
+        buttonPanel.add(cancelButton);
+    
+        panel.add(scrollPane, BorderLayout.CENTER);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
+    
+        return panel;
     }
 }
