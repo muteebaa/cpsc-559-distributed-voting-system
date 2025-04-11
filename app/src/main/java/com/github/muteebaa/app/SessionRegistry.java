@@ -37,9 +37,9 @@ public class SessionRegistry {
     private static HttpClient client = HttpClient.newHttpClient();
     private static final List<String> registryServers = List.of(
             // FIXME: Set actual ngrok addresses
-            "https://cc6b-136-159-213-33.ngrok-free.app",
-            "https://cc6b-136-159-213-33.ngrok-free.app",
-            "https://cc6b-136-159-213-33.ngrok-free.app"
+            "https://f433-136-159-213-22.ngrok-free.app",
+            "https://f433-136-159-213-22.ngrok-free.app",
+            "https://f433-136-159-213-22.ngrok-free.app"
             );
 
     private static String currRegistry = registryServers.get(0);

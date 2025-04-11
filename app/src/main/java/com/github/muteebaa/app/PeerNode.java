@@ -37,6 +37,7 @@ public class PeerNode {
 
     private Consumer<String> heartbeatStatusConsumer;
     private Consumer<String> statusMessageConsumer;
+
     private Consumer<String> guiMessageConsumer;
 
     private static final Scanner scanner = new Scanner(System.in);
@@ -335,6 +336,12 @@ public class PeerNode {
     }
 
     // Helper method to send messages to GUI
+    private void sendToGUIMessageConsumer(String message) {
+        if (guiMessageConsumer != null) {
+            SwingUtilities.invokeLater(() -> guiMessageConsumer.accept(message));
+        }
+    }
+
     private void sendToGUI(String message) {
         if (statusMessageConsumer != null) {
             SwingUtilities.invokeLater(() -> statusMessageConsumer.accept(message));
@@ -408,7 +415,7 @@ public class PeerNode {
                     nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + incomingUUID + ":" + vote, peerNodes.values());
                     nodeComm.connectToNode(host, port);
                     nodeComm.sendMessage("ACK: Your vote was successfully counted.", nodeComm.getClientSocket());
-                    sendToGUI("Vote counted: " + vote);
+                    sendToGUI("Vote counted: " + vote);                   
                 }
             } else {
                 nodeComm.connectToNode(host, port);
@@ -550,6 +557,8 @@ public class PeerNode {
      * @param vote The vote being submitted.
      */
     public synchronized void sendVoteToLeader(String vote) {
+        
+        sendToGUIMessageConsumer("HIDE_VOTING_OPTIONS");
         this.acknowledgment = false;
 
         if (nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]))) {
@@ -591,42 +600,20 @@ public class PeerNode {
     }
 
     public void promptForVote() {
-        String optionsString = SessionRegistry.getVotingOptions(sessionCode).toString();
-
-        // Trim the brackets if present
-        if (optionsString.startsWith("[") && optionsString.endsWith("]")) {
-            optionsString = optionsString.substring(1, optionsString.length() - 1);
+        // This will now be handled by the GUI
+        if (guiMessageConsumer != null) {
+                sendToGUIMessageConsumer("SHOW_VOTING_OPTIONS:" + SessionRegistry.getVotingOptions(sessionCode).toString());
+            
         }
-        List<String> options = Arrays.stream(optionsString.split(",")).map(String::trim).collect(Collectors.toList());
-
-        JFrame frame = new JFrame("Vote Now");
-        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        frame.setSize(300, 200);
-        frame.setLayout(new FlowLayout());
-
-        JLabel messageLabel = new JLabel("Voting started! Choose an option:");
-        frame.add(messageLabel);
-
-        for (String option : options) {
-            JButton button = new JButton(option);
-            button.addActionListener(e -> {
-                sendVoteToLeader(option);
-                if (!leaderToken) {
-                    sendToGUI("We will let you know when voting ends.");
-                }
-                frame.dispose(); // Close voting window after vote
-            });
-            frame.add(button);
-        }
-
-        frame.setVisible(true);
     }
 
     public void setGuiMessageConsumer(Consumer<String> consumer) {
         this.guiMessageConsumer = consumer;
+        System.out.print("sending to the frontend the voting options");
     }
     
     private void sendToGui(String message) {
+        System.out.print(message);
         if (guiMessageConsumer != null) {
             SwingUtilities.invokeLater(() -> guiMessageConsumer.accept(message));
         }
@@ -653,12 +640,25 @@ public class PeerNode {
         });
     }
 
-    public void startVotingButtonClicked(){
+    public void startVotingButtonClicked() {
         new Thread(() -> {
-                    SessionRegistry.updateSession(this.sessionCode, "started", null, null);
-                    this.startVoting();
-                    this.promptForVote();
-                }).start();
+            // Update session status
+            SessionRegistry.updateSession(this.sessionCode, "started", null, null);
+    
+            // Leader-specific actions
+            if (leaderToken) {
+                this.startVoting();
+        
+                // Broadcast voting start to all peers
+                nodeComm.broadcastMessage("START_VOTING:" + sessionCode, peerNodes.values());
+            }
+    
+            // Notify GUI to show voting options
+            String options = SessionRegistry.getVotingOptions(sessionCode).toString();
+            // Remove brackets and quotes for cleaner display
+            options = options.replaceAll("[\\[\\]\"]", "");
+            sendToGUIMessageConsumer("SHOW_VOTING_OPTIONS:" + options);
+        }).start();
     }
 
     /**

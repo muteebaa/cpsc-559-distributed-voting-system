@@ -90,209 +90,549 @@ public class StartVoting {
         return panel;
     }
 
-    private static JPanel createNewElectionPanel() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+    // ... [Previous imports and class declaration remain the same]
 
-        JLabel titleLabel = new JLabel("Start New Election");
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 16));
+private static JPanel createNewElectionPanel() {
+    // Create main panel with border layout
+    JPanel panel = new JPanel(new BorderLayout(20, 20));
+    panel.setBorder(BorderFactory.createEmptyBorder(40, 60, 40, 60));
+    panel.setBackground(new Color(240, 240, 245));
+
+    // Header panel
+    JPanel headerPanel = new JPanel();
+    headerPanel.setBackground(new Color(240, 240, 245));
+    JLabel titleLabel = new JLabel("Start New Election");
+    titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
+    titleLabel.setForeground(new Color(50, 50, 80));
+    headerPanel.add(titleLabel);
+    panel.add(headerPanel, BorderLayout.NORTH);
+
+    // Center form panel
+    JPanel formPanel = new JPanel(new GridBagLayout());
+    formPanel.setBackground(new Color(240, 240, 245));
+    formPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+    GridBagConstraints gbc = new GridBagConstraints();
+    gbc.insets = new Insets(10, 10, 10, 10);
+    gbc.anchor = GridBagConstraints.WEST;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
+
+    // Port input
+    JLabel portLabel = new JLabel("Your Node's Port Number:");
+    portLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+    gbc.gridx = 0;
+    gbc.gridy = 0;
+    formPanel.add(portLabel, gbc);
+
+    JTextField portField = new JTextField(20);
+    portField.setFont(new Font("Arial", Font.PLAIN, 14));
+    portField.setPreferredSize(new Dimension(200, 30));
+    gbc.gridx = 1;
+    formPanel.add(portField, gbc);
+
+    // Options input
+    JLabel optionsLabel = new JLabel("Voting Options (comma-separated):");
+    optionsLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+    gbc.gridx = 0;
+    gbc.gridy = 1;
+    formPanel.add(optionsLabel, gbc);
+
+    JTextField optionsField = new JTextField(20);
+    optionsField.setFont(new Font("Arial", Font.PLAIN, 14));
+    optionsField.setPreferredSize(new Dimension(200, 30));
+    gbc.gridx = 1;
+    formPanel.add(optionsField, gbc);
+
+    panel.add(formPanel, BorderLayout.CENTER);
+
+    // Button panel
+    JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
+    buttonPanel.setBackground(new Color(240, 240, 245));
+
+    JButton createBtn = new JButton("Create Session");
+    styleButton(createBtn, new Color(70, 130, 180), Color.WHITE);
+    createBtn.setPreferredSize(new Dimension(180, 40));
+
+    JButton backBtn = new JButton("Back to Main Menu");
+    styleButton(backBtn, new Color(220, 80, 60), Color.WHITE);
+    backBtn.setPreferredSize(new Dimension(180, 40));
+
+    createBtn.addActionListener(e -> {
+        try {
+            int myPort = Integer.parseInt(portField.getText());
+            String options = optionsField.getText();
+
+            currentPeer = new PeerNode(myPort);
         
-        JLabel portLabel = new JLabel("Enter your node's port number:");
-        JTextField portField = new JTextField(15);
-        
-        JLabel optionsLabel = new JLabel("Enter comma-separated voting options:");
-        JTextField optionsField = new JTextField(15);
-        
-        JButton createBtn = new JButton("Create Session");
-        JButton backBtn = new JButton("Back to Main Menu");
+            // Create status panel
+            JPanel statusPanel = new JPanel(new BorderLayout());
+            statusPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+            statusPanel.setBackground(Color.WHITE);
 
-        createBtn.addActionListener(e -> {
-    try {
-        int myPort = Integer.parseInt(portField.getText());
-        String options = optionsField.getText();
-
-        currentPeer = new PeerNode(myPort);
-    
-        // Unified message consumer for all status messages
-        Consumer<String> statusConsumer = message -> {
-            SwingUtilities.invokeLater(() -> {
-                String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
-                
-                // Color code different message types
-                if (message.contains("Heartbeat")) {
-                    statusTextArea.append("[" + timestamp + "] [HEARTBEAT] " + message + "\n");
-                } else if (message.contains("Vote") || message.contains("tally")) {
-                    statusTextArea.append("[" + timestamp + "] [VOTE] " + message + "\n");
-                } else if (message.contains("Election") || message.contains("Leader")) {
-                    statusTextArea.append("[" + timestamp + "] [ELECTION] " + message + "\n");
-                } else {
-                    statusTextArea.append("[" + timestamp + "] " + message + "\n");
-                }
-                
-                statusTextArea.setCaretPosition(statusTextArea.getDocument().getLength());
-            });
-        };
-
-        // Set up all consumers to use the same status handler
-        currentPeer.setStatusMessageConsumer(statusConsumer);
-        currentPeer.setHeartbeatStatusConsumer(statusConsumer);
-        currentPeer.setGuiMessageConsumer(statusConsumer);
-
-        currentPeer.startPeer();
-        String sessionCode = currentPeer.startNewSession(options);
-        currentPeer.registerWithLeader(currentPeer.getMyIp() + ":" + myPort);
-
-        statusTextArea.setText("Session created!\nShare this code: " + sessionCode + 
-                         "\nVoting options: " + options + 
-                         "\n\nWaiting for participants...");
-        cardLayout.show(cardPanel, "WAITING");
-
-        // Add Start Election button to waiting panel
-        JButton startElectionBtn = new JButton("Start Election");
-        startElectionBtn.addActionListener(ev -> {
-                currentPeer.startVotingButtonClicked();
+            // Header with session info
+            JPanel headerPanel2 = new JPanel(new GridLayout(0, 1, 5, 5));
+            headerPanel2.setBackground(Color.WHITE);
             
-        });
+            JLabel sessionTitle = new JLabel("Election Session Created", SwingConstants.CENTER);
+            sessionTitle.setFont(new Font("Arial", Font.BOLD, 18));
+            sessionTitle.setForeground(new Color(44, 62, 80));
+            
+            JLabel sessionCodeLabel = new JLabel("Session Code:", SwingConstants.CENTER);
+            sessionCodeLabel.setFont(new Font("Arial", Font.BOLD, 14));
+            
+            JLabel codeDisplay = new JLabel("", SwingConstants.CENTER);
+            codeDisplay.setFont(new Font("Arial", Font.BOLD, 24));
+            codeDisplay.setForeground(new Color(41, 128, 185));
+            codeDisplay.setBorder(BorderFactory.createEmptyBorder(10, 0, 20, 0));
+            
+            // Voting options panel (initially hidden)
+            JPanel optionsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
+            optionsPanel.setBackground(Color.WHITE);
+            optionsPanel.setVisible(false);
+            
+            headerPanel2.add(sessionTitle);
+            headerPanel2.add(sessionCodeLabel);
+            headerPanel2.add(codeDisplay);
+            
+            // Status messages
+            JPanel messagesPanel = new JPanel(new BorderLayout());
+            messagesPanel.setBorder(BorderFactory.createTitledBorder("Session Activity"));
+            
+            DefaultListModel<String> messageListModel = new DefaultListModel<>();
+            JList<String> messageList = new JList<>(messageListModel);
+            messageList.setCellRenderer(new StatusMessageRenderer());
+            messageList.setBackground(new Color(245, 245, 245));
+            
+            JScrollPane scrollPane = new JScrollPane(messageList);
+            scrollPane.setBorder(BorderFactory.createEmptyBorder());
+            messagesPanel.add(scrollPane, BorderLayout.CENTER);
+            
+            // Create button container for Start Election button
+            JPanel buttonContainer = new JPanel(new FlowLayout(FlowLayout.CENTER));
+            buttonContainer.setBackground(Color.WHITE);
+            
+            // Start Election button
+            JButton startElectionBtn = new JButton("Start Election");
+            styleButton(startElectionBtn, new Color(46, 204, 113), Color.WHITE);
+            startElectionBtn.addActionListener(ev -> {
+                currentPeer.startVotingButtonClicked();
+                startElectionBtn.setEnabled(false);
+            });
+            buttonContainer.add(startElectionBtn);
+            
+            // Create south container to hold both options and button panel
+            JPanel southContainer = new JPanel(new BorderLayout());
+            southContainer.add(optionsPanel, BorderLayout.NORTH);
+            southContainer.add(buttonContainer, BorderLayout.SOUTH);
 
-        buttonPanel.add(startElectionBtn, 0);
-        buttonPanel.revalidate();
-        buttonPanel.repaint();
+            statusPanel.add(headerPanel2, BorderLayout.NORTH);
+            statusPanel.add(messagesPanel, BorderLayout.CENTER);
+            statusPanel.add(southContainer, BorderLayout.SOUTH);
+            
+            cardPanel.add(statusPanel, "WAITING");
+            
+            // Set up message consumers
+            currentPeer.setStatusMessageConsumer(message -> {
+                SwingUtilities.invokeLater(() -> {
+                    String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                    String formattedMessage = "[" + timestamp + "] " + message;
+                    messageListModel.addElement(formattedMessage);
+                    messageList.ensureIndexIsVisible(messageListModel.size() - 1);
+                });
+            });
 
-    } catch (NumberFormatException ex) {
-        JOptionPane.showMessageDialog(mainFrame, 
-            "Please enter a valid port number", 
-            "Error", JOptionPane.ERROR_MESSAGE);
-    }
-});
+            currentPeer.setGuiMessageConsumer(message -> {
+                SwingUtilities.invokeLater(() -> {
+                    System.out.println("Processing message: " + message); // Debug
+                    
+                    if (message.startsWith("SHOW_VOTING_OPTIONS:")) {
+                        String optionsString = message.substring("SHOW_VOTING_OPTIONS:".length()).trim();
+                        System.out.println("Showing options: " + optionsString); // Debug
+                        
+                        // Clear existing components
+                        optionsPanel.removeAll();
+                        optionsPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 10, 10));
+                        
+                        // Add title
+                        JLabel title = new JLabel("Vote Now:", SwingConstants.CENTER);
+                        title.setFont(new Font("Arial", Font.BOLD, 16));
+                        optionsPanel.add(title);
+                        
+                        // Add voting buttons
+                        for (String option : optionsString.split(",")) {
+                            option = option.trim();
+                            if (!option.isEmpty()) {
+                                JButton btn = new JButton(option);
+                                btn.setPreferredSize(new Dimension(150, 40));
+                                
+                                final String finalOption = option;
+                                btn.addActionListener(ev -> {
+                                    currentPeer.sendVoteToLeader(finalOption);
+                                    JOptionPane.showMessageDialog(mainFrame,
+                                        "Voted for: " + finalOption,
+                                        "Vote Submitted",
+                                        JOptionPane.INFORMATION_MESSAGE);
+                                });
+                                optionsPanel.add(btn);
+                            }
+                        }
+                        
+                        // Force UI update
+                        optionsPanel.setVisible(true);
+                        optionsPanel.revalidate();
+                        optionsPanel.repaint();
+                        
+                        // Debug print component hierarchy
+                        System.out.println("Options panel visible: " + optionsPanel.isVisible());
+                        System.out.println("Options panel parent: " + optionsPanel.getParent());
+                        
+                        // Add to activity log
+                        String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                        messageListModel.addElement("[" + timestamp + "] Voting has started! Options: " + optionsString);
+                    }
+                    else if (message.equals("HIDE_VOTING_OPTIONS")) {
+                            optionsPanel.setVisible(false);
+                            optionsPanel.removeAll();
+                            optionsPanel.revalidate();
+                            optionsPanel.repaint();
+            
+                            // Add to activity log
+                            String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                            messageListModel.addElement("[" + timestamp + "] Voting completed - waiting for results");
+                        }
+                        else if (message.equals("SHOW_END_ELECTION")) {
+                            // Remove existing buttons
+                            buttonContainer.removeAll();
+            
+                            // Add End Election button
+                            JButton endElectionBtn = new JButton("End Election");
+                            styleButton(endElectionBtn, new Color(231, 76, 60), Color.WHITE); // Red color
+                            endElectionBtn.addActionListener(ev -> {
+                                currentPeer.endVoting();
+                                endElectionBtn.setEnabled(false);
+                            });
+                            buttonContainer.add(endElectionBtn);
+            
+                            buttonContainer.revalidate();
+                            buttonContainer.repaint();
+            
+                            // Hide voting options
+                            optionsPanel.setVisible(false);
+                            optionsPanel.removeAll();
+                            optionsPanel.revalidate();
+                            optionsPanel.repaint();
+            
+                            // Add to activity log
+                            String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                            messageListModel.addElement("[" + timestamp + "] All votes counted - ready to end election");
+                        }
+                        else {
+                            // Regular status message
+                            String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                            messageListModel.addElement("[" + timestamp + "] " + message);
+                        }
+                });
+            });
 
-        backBtn.addActionListener(e -> cardLayout.show(cardPanel, "MAIN"));
+            currentPeer.setHeartbeatStatusConsumer(message -> {
+                SwingUtilities.invokeLater(() -> {
+                    String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                    messageListModel.addElement("[" + timestamp + "] " + message);
+                });
+            });
 
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridwidth = GridBagConstraints.REMAINDER;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.insets = new Insets(5, 0, 5, 0);
-        
-        panel.add(titleLabel, gbc);
-        panel.add(portLabel, gbc);
-        panel.add(portField, gbc);
-        panel.add(optionsLabel, gbc);
-        panel.add(optionsField, gbc);
-        
-        JPanel buttonPanel = new JPanel(new GridLayout(1, 2, 10, 0));
-        buttonPanel.add(createBtn);
-        buttonPanel.add(backBtn);
-        
-        panel.add(buttonPanel, gbc);
-        return panel;
-    }
+            // Start peer and session
+            currentPeer.startPeer();
+            String sessionCode = currentPeer.startNewSession(options);
+            currentPeer.registerWithLeader(currentPeer.getMyIp() + ":" + myPort);
+
+            codeDisplay.setText(sessionCode);
+            cardLayout.show(cardPanel, "WAITING");
+
+        } catch (NumberFormatException ex) {
+            JOptionPane.showMessageDialog(mainFrame, 
+                "Please enter a valid port number", 
+                "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    });
+
+    backBtn.addActionListener(e -> cardLayout.show(cardPanel, "MAIN"));
+
+    buttonPanel.add(createBtn);
+    buttonPanel.add(backBtn);
+    panel.add(buttonPanel, BorderLayout.SOUTH);
+
+    return panel;
+}
+
+
+// Helper method to style buttons
+private static void styleButton(JButton button, Color bgColor, Color textColor) {
+    button.setBackground(bgColor);
+    button.setForeground(textColor);
+    button.setFont(new Font("Arial", Font.BOLD, 14));
+    button.setFocusPainted(false);
+    button.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createLineBorder(bgColor.darker(), 1),
+        BorderFactory.createEmptyBorder(5, 15, 5, 15)
+    ));
+    button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+}
 
     private static void showJoinElectionPanel() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+    // Create main panel with border layout
+    JPanel panel = new JPanel(new BorderLayout(20, 20));
+    panel.setBorder(BorderFactory.createEmptyBorder(40, 60, 40, 60));
+    panel.setBackground(new Color(240, 240, 245));
 
-        JLabel titleLabel = new JLabel("Join Existing Election");
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 16));
-    
-        JLabel codeLabel = new JLabel("Enter session code:");
-        JTextField codeField = new JTextField(15);
-    
-        JLabel portLabel = new JLabel("Enter your node's port number:");
-        JTextField portField = new JTextField(15);
-    
-        JButton joinBtn = new JButton("Join Session");
-        JButton backBtn = new JButton("Back to Main Menu");
+    // Header panel
+    JPanel headerPanel = new JPanel();
+    headerPanel.setBackground(new Color(240, 240, 245));
+    JLabel titleLabel = new JLabel("Join Existing Election");
+    titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
+    titleLabel.setForeground(new Color(50, 50, 80));
+    headerPanel.add(titleLabel);
+    panel.add(headerPanel, BorderLayout.NORTH);
 
-        joinBtn.addActionListener(e -> {
-            String sessionCode = codeField.getText();
-            Map<String, String> sessions = SessionRegistry.loadSessions();
+    // Center form panel
+    JPanel formPanel = new JPanel(new GridBagLayout());
+    formPanel.setBackground(new Color(240, 240, 245));
+    formPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-            if (sessions.containsKey(sessionCode)) {
-                String sessionDetails = sessions.get(sessionCode);
-                String[] parts = sessionDetails.split(",");
-                String leaderAddress = parts[0];
-                String sessionStatus = parts.length > 1 ? parts[1] : "unknown";
+    GridBagConstraints gbc = new GridBagConstraints();
+    gbc.insets = new Insets(10, 10, 10, 10);
+    gbc.anchor = GridBagConstraints.WEST;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
 
-                if ("ended".equals(sessionStatus)) {
-                    JOptionPane.showMessageDialog(mainFrame, 
-                        "Sorry, this session has already ended!", 
-                        "Session Ended", 
-                        JOptionPane.ERROR_MESSAGE);
-                    return;
-                } else if ("started".equals(sessionStatus)) {
-                    JOptionPane.showMessageDialog(mainFrame, 
-                        "Sorry, this session is already in progress!", 
-                        "Session In Progress", 
-                        JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
+    // Session code input
+    JLabel codeLabel = new JLabel("Session Code:");
+    codeLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+    gbc.gridx = 0;
+    gbc.gridy = 0;
+    formPanel.add(codeLabel, gbc);
 
-                try {
-                    int myPort = Integer.parseInt(portField.getText());
-                
-                    currentPeer = new PeerNode(myPort);
-                
-                    currentPeer.setStatusMessageConsumer(status -> {
-                        SwingUtilities.invokeLater(() -> {
-                            String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
-                            statusTextArea.append("[" + timestamp + "] " + status + "\n");
-                            statusTextArea.setCaretPosition(statusTextArea.getDocument().getLength());
-                        });
-                    });
+    JTextField codeField = new JTextField(20);
+    codeField.setFont(new Font("Arial", Font.PLAIN, 14));
+    codeField.setPreferredSize(new Dimension(200, 30));
+    gbc.gridx = 1;
+    formPanel.add(codeField, gbc);
 
-                    currentPeer.setHeartbeatStatusConsumer(status -> {
-                        SwingUtilities.invokeLater(() -> {
-                            String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
-                            statusTextArea.append("[" + timestamp + "] HEARTBEAT: " + status + "\n");
-                            statusTextArea.setCaretPosition(statusTextArea.getDocument().getLength());
-                        });
-                    });
+    // Port input
+    JLabel portLabel = new JLabel("Your Node's Port Number:");
+    portLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+    gbc.gridx = 0;
+    gbc.gridy = 1;
+    formPanel.add(portLabel, gbc);
 
-                    currentPeer.setSessionCode(sessionCode);
-                    currentPeer.startPeer();
-                    currentPeer.registerWithLeader(leaderAddress);
+    JTextField portField = new JTextField(20);
+    portField.setFont(new Font("Arial", Font.PLAIN, 14));
+    portField.setPreferredSize(new Dimension(200, 30));
+    gbc.gridx = 1;
+    formPanel.add(portField, gbc);
 
-                    Runnable heartbeat = new SessionHeartbeat(currentPeer);
-                    beatHandle = scheduler.scheduleAtFixedRate(heartbeat, 10, 10, TimeUnit.SECONDS);
+    panel.add(formPanel, BorderLayout.CENTER);
 
-                    statusTextArea.setText("Successfully joined session: " + sessionCode + 
-                                     "\nLeader: " + leaderAddress +
-                                     "\n\nWaiting for voting to start...");
-                    cardLayout.show(cardPanel, "WAITING");
-                
-                } catch (NumberFormatException ex) {
-                    JOptionPane.showMessageDialog(mainFrame, 
-                        "Please enter a valid port number", 
-                        "Error", JOptionPane.ERROR_MESSAGE);
-                }
-            } else {
+    // Button panel
+    JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
+    buttonPanel.setBackground(new Color(240, 240, 245));
+
+    JButton joinBtn = new JButton("Join Session");
+    styleButton(joinBtn, new Color(70, 130, 180), Color.WHITE);
+    joinBtn.setPreferredSize(new Dimension(180, 40));
+
+    JButton backBtn = new JButton("Back to Main Menu");
+    styleButton(backBtn, new Color(220, 80, 60), Color.WHITE);
+    backBtn.setPreferredSize(new Dimension(180, 40));
+
+    joinBtn.addActionListener(e -> {
+        String sessionCode = codeField.getText();
+        Map<String, String> sessions = SessionRegistry.loadSessions();
+
+        if (sessions.containsKey(sessionCode)) {
+            String sessionDetails = sessions.get(sessionCode);
+            String[] parts = sessionDetails.split(",");
+            String leaderAddress = parts[0];
+            String sessionStatus = parts.length > 1 ? parts[1] : "unknown";
+
+            if ("ended".equals(sessionStatus)) {
                 JOptionPane.showMessageDialog(mainFrame, 
-                    "Invalid session code!", 
+                    "Sorry, this session has already ended!", 
+                    "Session Ended", 
+                    JOptionPane.ERROR_MESSAGE);
+                return;
+            } else if ("started".equals(sessionStatus)) {
+                JOptionPane.showMessageDialog(mainFrame, 
+                    "Sorry, this session is already in progress!", 
+                    "Session In Progress", 
+                    JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            try {
+                int myPort = Integer.parseInt(portField.getText());
+            
+                currentPeer = new PeerNode(myPort);
+            
+                // Create status panel (similar to createNewElectionPanel)
+                JPanel statusPanel = new JPanel(new BorderLayout());
+                statusPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+                statusPanel.setBackground(Color.WHITE);
+
+                // Header with session info
+                JPanel headerPanel2 = new JPanel(new GridLayout(0, 1, 5, 5));
+                headerPanel2.setBackground(Color.WHITE);
+                
+                JLabel sessionTitle = new JLabel("Joined Election Session", SwingConstants.CENTER);
+                sessionTitle.setFont(new Font("Arial", Font.BOLD, 18));
+                sessionTitle.setForeground(new Color(44, 62, 80));
+                
+                JLabel sessionCodeLabel = new JLabel("Session Code:", SwingConstants.CENTER);
+                sessionCodeLabel.setFont(new Font("Arial", Font.BOLD, 14));
+                
+                JLabel codeDisplay = new JLabel(sessionCode, SwingConstants.CENTER);
+                codeDisplay.setFont(new Font("Arial", Font.BOLD, 24));
+                codeDisplay.setForeground(new Color(41, 128, 185));
+                codeDisplay.setBorder(BorderFactory.createEmptyBorder(10, 0, 20, 0));
+                
+                // Voting options panel (initially hidden)
+                JPanel optionsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
+                optionsPanel.setBackground(Color.WHITE);
+                optionsPanel.setVisible(false);
+                
+                headerPanel2.add(sessionTitle);
+                headerPanel2.add(sessionCodeLabel);
+                headerPanel2.add(codeDisplay);
+                
+                // Status messages
+                JPanel messagesPanel = new JPanel(new BorderLayout());
+                messagesPanel.setBorder(BorderFactory.createTitledBorder("Session Activity"));
+                
+                DefaultListModel<String> messageListModel = new DefaultListModel<>();
+                JList<String> messageList = new JList<>(messageListModel);
+                messageList.setCellRenderer(new StatusMessageRenderer());
+                messageList.setBackground(new Color(245, 245, 245));
+                
+                JScrollPane scrollPane = new JScrollPane(messageList);
+                scrollPane.setBorder(BorderFactory.createEmptyBorder());
+                messagesPanel.add(scrollPane, BorderLayout.CENTER);
+                
+                // Create button container (empty for now)
+                JPanel buttonContainer = new JPanel(new FlowLayout(FlowLayout.CENTER));
+                buttonContainer.setBackground(Color.WHITE);
+                
+                // Create south container
+                JPanel southContainer = new JPanel(new BorderLayout());
+                southContainer.add(optionsPanel, BorderLayout.NORTH);
+                southContainer.add(buttonContainer, BorderLayout.SOUTH);
+
+                statusPanel.add(headerPanel2, BorderLayout.NORTH);
+                statusPanel.add(messagesPanel, BorderLayout.CENTER);
+                statusPanel.add(southContainer, BorderLayout.SOUTH);
+                
+                cardPanel.add(statusPanel, "WAITING");
+                
+                // Set up message consumers
+                currentPeer.setStatusMessageConsumer(message -> {
+                    SwingUtilities.invokeLater(() -> {
+                        String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                        String formattedMessage = "[" + timestamp + "] " + message;
+                        messageListModel.addElement(formattedMessage);
+                        messageList.ensureIndexIsVisible(messageListModel.size() - 1);
+                    });
+                });
+
+                currentPeer.setGuiMessageConsumer(message -> {
+                    SwingUtilities.invokeLater(() -> {
+                        if (message.startsWith("SHOW_VOTING_OPTIONS:")) {
+                            String optionsString = message.substring("SHOW_VOTING_OPTIONS:".length()).trim();
+                            
+                            // Clear and show options panel
+                            optionsPanel.removeAll();
+                            optionsPanel.setVisible(true);
+                            
+                            // Add title
+                            JLabel voteTitle = new JLabel("Vote Now:", SwingConstants.CENTER);
+                            voteTitle.setFont(new Font("Arial", Font.BOLD, 14));
+                            optionsPanel.add(voteTitle);
+                            
+                            // Add voting buttons
+                            for (String option : optionsString.split(",")) {
+                                option = option.trim();
+                                JButton voteButton = new JButton(option);
+                                voteButton.setPreferredSize(new Dimension(150, 40));
+                                
+                                final String finalOption = option;
+                                voteButton.addActionListener(ev -> {
+                                    currentPeer.sendVoteToLeader(finalOption);
+                                    JOptionPane.showMessageDialog(mainFrame,
+                                        "Vote submitted for: " + finalOption,
+                                        "Vote Received",
+                                        JOptionPane.INFORMATION_MESSAGE);
+                                });
+                                optionsPanel.add(voteButton);
+                            }
+                            
+                            optionsPanel.revalidate();
+                            optionsPanel.repaint();
+                            
+                            // Add to activity log
+                            String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                            messageListModel.addElement("[" + timestamp + "] Voting has started!");
+                        }
+                        else if (message.equals("HIDE_VOTING_OPTIONS")) {
+                            optionsPanel.setVisible(false);
+                            optionsPanel.removeAll();
+                            optionsPanel.revalidate();
+                            optionsPanel.repaint();
+            
+                            // Add to activity log
+                            String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                            messageListModel.addElement("[" + timestamp + "] Voting completed - waiting for results");
+                        }else {
+                            // Regular status message
+                            String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                            messageListModel.addElement("[" + timestamp + "] " + message);
+                        }
+                    });
+                });
+
+                currentPeer.setHeartbeatStatusConsumer(message -> {
+                    SwingUtilities.invokeLater(() -> {
+                        String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                        messageListModel.addElement("[" + timestamp + "] " + message);
+                    });
+                });
+
+                currentPeer.setSessionCode(sessionCode);
+                currentPeer.startPeer();
+                currentPeer.registerWithLeader(leaderAddress);
+
+                Runnable heartbeat = new SessionHeartbeat(currentPeer);
+                beatHandle = scheduler.scheduleAtFixedRate(heartbeat, 10, 10, TimeUnit.SECONDS);
+
+                cardLayout.show(cardPanel, "WAITING");
+            
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(mainFrame, 
+                    "Please enter a valid port number", 
                     "Error", JOptionPane.ERROR_MESSAGE);
             }
-        });
+        } else {
+            JOptionPane.showMessageDialog(mainFrame, 
+                "Invalid session code!", 
+                "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    });
 
-        backBtn.addActionListener(e -> cardLayout.show(cardPanel, "MAIN"));
+    backBtn.addActionListener(e -> cardLayout.show(cardPanel, "MAIN"));
 
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridwidth = GridBagConstraints.REMAINDER;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.insets = new Insets(5, 0, 5, 0);
-    
-        panel.add(titleLabel, gbc);
-        panel.add(codeLabel, gbc);
-        panel.add(codeField, gbc);
-        panel.add(portLabel, gbc);
-        panel.add(portField, gbc);
-    
-        JPanel buttonPanel = new JPanel(new GridLayout(1, 2, 10, 0));
-        buttonPanel.add(joinBtn);
-        buttonPanel.add(backBtn);
-    
-        panel.add(buttonPanel, gbc);
+    buttonPanel.add(joinBtn);
+    buttonPanel.add(backBtn);
+    panel.add(buttonPanel, BorderLayout.SOUTH);
 
-        cardPanel.add(panel, "JOIN_ELECTION");
-        cardLayout.show(cardPanel, "JOIN_ELECTION");
-    }
+    cardPanel.add(panel, "JOIN_ELECTION");
+    cardLayout.show(cardPanel, "JOIN_ELECTION");
+}
 
     private static JPanel createSessionsPanel() {
         JPanel panel = new JPanel(new BorderLayout());
@@ -350,4 +690,31 @@ public class StartVoting {
     
         return panel;
     }
+    private static class StatusMessageRenderer extends DefaultListCellRenderer {
+        @Override
+        public Component getListCellRendererComponent(JList<?> list, Object value, int index, 
+                                                     boolean isSelected, boolean cellHasFocus) {
+            super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+        
+            String message = (String) value;
+            setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        
+            if (message.contains("[HEARTBEAT]")) {
+                setForeground(new Color(52, 152, 219));
+                setIcon(new ImageIcon("heartbeat_icon.png")); // You'd add your own icon
+            } else if (message.contains("[VOTE]")) {
+                setForeground(new Color(155, 89, 182));
+                setIcon(new ImageIcon("vote_icon.png"));
+            } else if (message.contains("[ELECTION]")) {
+                setForeground(new Color(231, 76, 60));
+                setIcon(new ImageIcon("election_icon.png"));
+            } else {
+                setForeground(new Color(44, 62, 80));
+            }
+        
+            return this;
+        }
+    }
 }
+
+
