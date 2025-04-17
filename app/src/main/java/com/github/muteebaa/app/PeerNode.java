@@ -604,7 +604,7 @@ public class PeerNode {
         this.leaderAddress = getMyIp() + ":" + this.port;
 
         System.out.println(ANSI_CYAN + "Leader token set." + ANSI_RESET);
-        // System.out.println(leaderAddress);
+        System.out.println(leaderAddress);
 
         this.broadcastMessage("LEADER:" + this.nodeId, null);
 
@@ -641,8 +641,10 @@ public class PeerNode {
         this.voteBuffer = vote;
 
         this.acknowledgment = false;
+        System.out.println("Connecting to leader for vote");
+        System.out.println(leaderAddress);
         if (nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]))) {
-
+            System.out.println("Connected to leader for vote");
             nodeComm.sendMessage("VOTE:" + this.nodeId + ":" + vote + ":" + this.uuid, nodeComm.getClientSocket());
 
             // Wait for acknowledgment from the leader
@@ -782,90 +784,96 @@ public class PeerNode {
 
     // Initiate_Election(int i) /* process Pi */
     public void initiateElection() {
-        System.out.println(ANSI_CYAN + "Initiating election..." + ANSI_RESET);
-        // remove peer with leader address from peerNodes
-        peerNodes.values().removeIf(value -> value.equals(leaderAddress));
-        this.leaderAddress = null;
+        synchronized (this.electionLock) {
+            if (this.hasLeaderToken) {
+                return;
+            }
+            System.out.println(ANSI_CYAN + "Initiating election..." + ANSI_RESET);
+            // remove peer with leader address from peerNodes
+            peerNodes.values().removeIf(value -> value.equals(leaderAddress));
+            this.leaderAddress = null;
 
-        // runningi = true /* I am running in this elections */
-        this.running = true;
+            // runningi = true /* I am running in this elections */
+            this.running = true;
 
-        System.out.println(ANSI_CYAN + "Peer nodes: " + peerNodes + ANSI_RESET);
+            System.out.println(ANSI_CYAN + "Peer nodes: " + peerNodes + ANSI_RESET);
 
-        int highestCurrentId = peerNodes.keySet().stream()
-                .mapToInt(Number::intValue) // Convert Number to int
-                .max() // Get the maximum value
-                .orElse(0); // Default value if the map is empty
+            int highestCurrentId = peerNodes.keySet().stream()
+                    .mapToInt(Number::intValue) // Convert Number to int
+                    .max() // Get the maximum value
+                    .orElse(0); // Default value if the map is empty
 
-        System.out.println(ANSI_CYAN + "Highest current id: " + highestCurrentId + ANSI_RESET);
+            System.out.println(ANSI_CYAN + "Highest current id: " + highestCurrentId + ANSI_RESET);
 
-        // if i is the highest id
-        if (this.nodeId == highestCurrentId) {
-            System.out.println(
-                    ANSI_CYAN + "Node " + nodeId + " is the highest id. Declaring myself as leader." + ANSI_RESET);
-            // then
-            // send leader(i) to all Pj, where j ≠ i else
-            System.out.println(ANSI_CYAN + "Sending leader message to all peers: " + peerNodes.values() + ANSI_RESET);
-            takeLeaderToken();
-            sendToGUIMessageConsumer("LEADER_CHANGE");
-            sendToGUI("Leader Change");
+            // if i is the highest id
+            if (this.nodeId == highestCurrentId) {
+                System.out.println(
+                        ANSI_CYAN + "Node " + nodeId + " is the highest id. Declaring myself as leader." + ANSI_RESET);
+                // then
+                // send leader(i) to all Pj, where j ≠ i else
+                System.out
+                        .println(ANSI_CYAN + "Sending leader message to all peers: " + peerNodes.values() + ANSI_RESET);
+                takeLeaderToken();
+                sendToGUIMessageConsumer("LEADER_CHANGE");
+                sendToGUI("Leader Change");
 
-        } else {
-            // get list of ids bigger than mine
-            Map<Number, String> biggerIds = peerNodes.entrySet().stream()
-                    .filter(entry -> entry.getKey().intValue() > this.nodeId) // Filter keys > my ID
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)); // Collect as Map
+            } else {
+                // get list of ids bigger than mine
+                Map<Number, String> biggerIds = peerNodes.entrySet().stream()
+                        .filter(entry -> entry.getKey().intValue() > this.nodeId) // Filter keys > my ID
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)); // Collect as Map
 
-            System.out.println(ANSI_CYAN + "Bigger ids: " + biggerIds + ANSI_RESET);
-            // send election(i) to all Pj, where j > i
-            this.broadcastMessage("ELECTION:" + this.nodeId, biggerIds.values());
+                System.out.println(ANSI_CYAN + "Bigger ids: " + biggerIds + ANSI_RESET);
+                // send election(i) to all Pj, where j > i
+                this.broadcastMessage("ELECTION:" + this.nodeId, biggerIds.values());
 
-            // /* check if there are bigger guys out there */
-            // wait for T time units
-            synchronized (this) {
-                while (!this.bullied) {
-                    try {
-                        wait(TIMEOUT);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
+                // /* check if there are bigger guys out there */
+                // wait for T time units
+                synchronized (this) {
+                    while (!this.bullied) {
+                        try {
+                            wait(TIMEOUT);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+
+                    // final check to prevent race condition
+                    if (this.bullied) {
+                        System.out
+                                .println(ANSI_CYAN + "Node " + nodeId + " was bullied. Not declaring myself as leader."
+                                        + ANSI_RESET);
+                        // Reset bullied flag
+                        this.bullied = false;
+                        return; // Exit the election process
+                    }
+
+                    // No response → Declare self as leader
+                    if (this.running && !hasLeaderToken()) {
+                        System.out.println(ANSI_CYAN + "Node " + nodeId
+                                + " received no response. Declaring myself as leader." + ANSI_RESET);
+                        takeLeaderToken();
+                        // nodeComm.broadcastMessage("LEADER:" + getMyIp() + "," + this.port,
+                        // peerNodes.values());
                     }
                 }
 
-                // final check to prevent race condition
-                if (this.bullied) {
-                    System.out.println(ANSI_CYAN + "Node " + nodeId + " was bullied. Not declaring myself as leader."
-                            + ANSI_RESET);
-                    // Reset bullied flag
-                    this.bullied = false;
-                    return; // Exit the election process
+                // else /* bully is received */
+                while (this.leaderAddress == null) {
+
+                    //// wait for T’ time units
+                    try {
+                        Thread.sleep(WAIT_TIME);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    //// if no leader(k) message Initiate_Election(i)
+                    initiateElection();
                 }
 
-                // No response → Declare self as leader
-                if (this.running && !hasLeaderToken()) {
-                    System.out.println(ANSI_CYAN + "Node " + nodeId
-                            + " received no response. Declaring myself as leader." + ANSI_RESET);
-                    takeLeaderToken();
-                    // nodeComm.broadcastMessage("LEADER:" + getMyIp() + "," + this.port,
-                    // peerNodes.values());
-                }
+                this.running = false;
             }
-
-            // else /* bully is received */
-            while (this.leaderAddress == null) {
-
-                //// wait for T’ time units
-                try {
-                    Thread.sleep(WAIT_TIME);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-                //// if no leader(k) message Initiate_Election(i)
-                initiateElection();
-            }
-
-            this.running = false;
         }
-
     }
 
     /**
