@@ -413,6 +413,16 @@ private static JPanel createNewElectionPanel() {
     return panel;
 }
 
+private static String getLatestLeaderAddress(String sessionCode) {
+    Map<String, String> sessions = SessionRegistry.loadSessions();
+    String sessionDetails = sessions.get(sessionCode);
+    if (sessionDetails == null) {
+        throw new IllegalStateException("No session found for code: " + sessionCode);
+    }
+    String[] parts = sessionDetails.split(",");
+    return parts[0]; // leaderAddress
+}
+
 
 // Helper method to style buttons
 private static void styleButton(JButton button, Color bgColor, Color textColor) {
@@ -778,8 +788,31 @@ private static void styleButton(JButton button, Color bgColor, Color textColor) 
                 });
 
                 currentPeer.setSessionCode(sessionCode);
-                currentPeer.startPeer();
-                currentPeer.registerWithLeader(leaderAddress);
+                long startTime = System.currentTimeMillis();
+                long timeout = 15_000; // 15 seconds
+
+                while (true) {
+                    try {
+                        currentPeer.startPeer();
+                        String leaderAddressNew = getLatestLeaderAddress(sessionCode);
+                        currentPeer.registerWithLeader(leaderAddressNew);
+                        break; // success! exit the loop
+                    } catch (Exception c) {
+                        if (System.currentTimeMillis() - startTime > timeout) {
+                            System.err.println("Failed to start and register peer within 15 seconds.");
+                            c.printStackTrace(); // or log it properly
+                            break;
+                        }
+
+                        // Optional: small delay to avoid tight loop
+                        try {
+                            Thread.sleep(5000); // half a second delay between retries
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt(); // re-set the interrupt flag
+                            break;
+                        }
+                    }
+                }
 
                 Runnable heartbeat = new SessionHeartbeat(currentPeer);
                 beatHandle = scheduler.scheduleAtFixedRate(heartbeat, 10, 10, TimeUnit.SECONDS);
