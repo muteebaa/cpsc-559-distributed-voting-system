@@ -294,10 +294,6 @@ public class StartVoting {
                                     final String finalOption = option;
                                     btn.addActionListener(ev -> {
                                         currentPeer.sendVoteToLeader(finalOption);
-                                        JOptionPane.showMessageDialog(mainFrame,
-                                                "Voted for: " + finalOption,
-                                                "Vote Submitted",
-                                                JOptionPane.INFORMATION_MESSAGE);
                                     });
                                     optionsPanel.add(btn);
                                 }
@@ -316,7 +312,20 @@ public class StartVoting {
                             String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
                             messageListModel
                                     .addElement("[" + timestamp + "] Voting has started! Options: " + optionsString);
-                        } else if (message.equals("HIDE_VOTING_OPTIONS")) {
+                        } else if (message.startsWith("HIDE_VOTING_OPTIONS")) {
+
+                            if (message.contains("DUPLICATE")) {
+                                JOptionPane.showMessageDialog(mainFrame,
+                                        "You have already voted!",
+                                        "Vote Submitted",
+                                        JOptionPane.INFORMATION_MESSAGE);
+                            } else {
+                                JOptionPane.showMessageDialog(mainFrame,
+                                        "Voted submitted successully!",
+                                        "Vote Submitted",
+                                        JOptionPane.INFORMATION_MESSAGE);
+                            }
+
                             optionsPanel.setVisible(false);
                             optionsPanel.removeAll();
                             optionsPanel.revalidate();
@@ -674,10 +683,6 @@ public class StartVoting {
                                         final String finalOption = option;
                                         btn.addActionListener(ev -> {
                                             currentPeer.sendVoteToLeader(finalOption);
-                                            JOptionPane.showMessageDialog(mainFrame,
-                                                    "Voted for: " + finalOption,
-                                                    "Vote Submitted",
-                                                    JOptionPane.INFORMATION_MESSAGE);
                                         });
                                         optionsPanel.add(btn);
                                     }
@@ -757,7 +762,19 @@ public class StartVoting {
                                     }
 
                                 }
-                            } else if (message.equals("HIDE_VOTING_OPTIONS")) {
+                            } else if (message.startsWith("HIDE_VOTING_OPTIONS")) {
+                                if (message.contains("DUPLICATE")) {
+                                    JOptionPane.showMessageDialog(mainFrame,
+                                            "You have already voted!",
+                                            "Vote Submitted",
+                                            JOptionPane.INFORMATION_MESSAGE);
+                                } else {
+                                    JOptionPane.showMessageDialog(mainFrame,
+                                            "Voted submitted successully!",
+                                            "Vote Submitted",
+                                            JOptionPane.INFORMATION_MESSAGE);
+                                }
+
                                 optionsPanel.setVisible(false);
                                 optionsPanel.removeAll();
                                 optionsPanel.revalidate();
@@ -794,82 +811,84 @@ public class StartVoting {
                                 }
 
                             } else if (message.startsWith("FINAL_RESULT")) {
-                            String results = message.substring("FINAL_RESULT:".length()).trim();
-                            String cleanResults = results.replace("{", "").replace("}", "");
+                                String results = message.substring("FINAL_RESULT:".length()).trim();
+                                String cleanResults = results.replace("{", "").replace("}", "");
 
-                            String[] entries = cleanResults.split(",");
+                                String[] entries = cleanResults.split(",");
 
-                            StringBuilder formattedResults = new StringBuilder();
-                            formattedResults.append("Thanks for joining the session! Here is the final count:\n\n");
+                                StringBuilder formattedResults = new StringBuilder();
+                                formattedResults.append("Thanks for joining the session! Here is the final count:\n\n");
 
-                            String[] columnNames = { "Option", "Votes" };
+                                String[] columnNames = { "Option", "Votes" };
 
-                            List<String[]> rowDataList = new ArrayList<>();
+                                List<String[]> rowDataList = new ArrayList<>();
 
-                            for (String entry : entries) {
-                                String[] keyValue = entry.split("=");
+                                for (String entry : entries) {
+                                    String[] keyValue = entry.split("=");
 
-                                if (keyValue.length == 2) {
-                                    String option = keyValue[0].trim();
-                                    String votes = keyValue[1].trim();
-                                    rowDataList.add(new String[] { option, votes });
+                                    if (keyValue.length == 2) {
+                                        String option = keyValue[0].trim();
+                                        String votes = keyValue[1].trim();
+                                        rowDataList.add(new String[] { option, votes });
+                                    }
                                 }
-                            }
 
-                            String[][] rowData = rowDataList.toArray(new String[0][]);
+                                String[][] rowData = rowDataList.toArray(new String[0][]);
 
-                            JTable resultsTable = new JTable(rowData, columnNames);
+                                JTable resultsTable = new JTable(rowData, columnNames);
 
-                            resultsTable.setEnabled(false);
-                            resultsTable.setFont(new Font("Arial", Font.PLAIN, 18));
-                            resultsTable.setRowHeight(30);
-                            resultsTable.setShowGrid(true);
-                            resultsTable.setGridColor(Color.BLACK);
+                                resultsTable.setEnabled(false);
+                                resultsTable.setFont(new Font("Arial", Font.PLAIN, 18));
+                                resultsTable.setRowHeight(30);
+                                resultsTable.setShowGrid(true);
+                                resultsTable.setGridColor(Color.BLACK);
 
-                            JTableHeader header = resultsTable.getTableHeader();
-                            header.setFont(new Font("Arial", Font.BOLD, 20));
-                            header.setPreferredSize(new Dimension(header.getPreferredSize().width, 40));
+                                JTableHeader header = resultsTable.getTableHeader();
+                                header.setFont(new Font("Arial", Font.BOLD, 20));
+                                header.setPreferredSize(new Dimension(header.getPreferredSize().width, 40));
 
-                            JPanel resultsPanel = new JPanel(new BorderLayout(20, 20));
-                            resultsPanel.setBorder(BorderFactory.createEmptyBorder(40, 60, 40, 60));
-                            resultsPanel.setBackground(Color.WHITE);
+                                JPanel resultsPanel = new JPanel(new BorderLayout(20, 20));
+                                resultsPanel.setBorder(BorderFactory.createEmptyBorder(40, 60, 40, 60));
+                                resultsPanel.setBackground(Color.WHITE);
 
-                            JLabel resultsTitleLabel = new JLabel("Election Results", SwingConstants.CENTER);
-                            resultsTitleLabel.setFont(new Font("Arial", Font.BOLD, 28));
-                            resultsTitleLabel.setForeground(new Color(52, 73, 94));
+                                JLabel resultsTitleLabel = new JLabel("Election Results", SwingConstants.CENTER);
+                                resultsTitleLabel.setFont(new Font("Arial", Font.BOLD, 28));
+                                resultsTitleLabel.setForeground(new Color(52, 73, 94));
 
-                            JScrollPane resultsScrollPane = new JScrollPane(resultsTable);
-                            resultsScrollPane.setBorder(BorderFactory.createLineBorder(new Color(189, 195, 199), 1));
-                            resultsScrollPane.setPreferredSize(new Dimension(400, 300));
+                                JScrollPane resultsScrollPane = new JScrollPane(resultsTable);
+                                resultsScrollPane
+                                        .setBorder(BorderFactory.createLineBorder(new Color(189, 195, 199), 1));
+                                resultsScrollPane.setPreferredSize(new Dimension(400, 300));
 
-                            JButton backToMenuButton = new JButton("Back to Main Menu");
-                            styleButton(backToMenuButton, new Color(41, 128, 185), Color.WHITE);
-                            backToMenuButton.setPreferredSize(new Dimension(220, 45));
-                            backToMenuButton.setFocusPainted(false);
-                            backToMenuButton.addActionListener(ev -> StartVoting.resetState());
+                                JButton backToMenuButton = new JButton("Back to Main Menu");
+                                styleButton(backToMenuButton, new Color(41, 128, 185), Color.WHITE);
+                                backToMenuButton.setPreferredSize(new Dimension(220, 45));
+                                backToMenuButton.setFocusPainted(false);
+                                backToMenuButton.addActionListener(ev -> StartVoting.resetState());
 
-                            JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-                            bottomPanel.setBackground(Color.WHITE);
-                            bottomPanel.add(backToMenuButton);
+                                JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+                                bottomPanel.setBackground(Color.WHITE);
+                                bottomPanel.add(backToMenuButton);
 
-                            // Assemble Results Panel
-                            resultsPanel.add(resultsTitleLabel, BorderLayout.NORTH);
-                            resultsPanel.add(new JLabel("Thanks for joining the session! Here is the final count:"));
-                            resultsPanel.add(resultsScrollPane, BorderLayout.CENTER);
-                            resultsPanel.add(bottomPanel, BorderLayout.SOUTH);
+                                // Assemble Results Panel
+                                resultsPanel.add(resultsTitleLabel, BorderLayout.NORTH);
+                                resultsPanel
+                                        .add(new JLabel("Thanks for joining the session! Here is the final count:"));
+                                resultsPanel.add(resultsScrollPane, BorderLayout.CENTER);
+                                resultsPanel.add(bottomPanel, BorderLayout.SOUTH);
 
-                            cardPanel.add(resultsPanel, "RESULTS");
-                            cardLayout.show(cardPanel, "RESULTS");
+                                cardPanel.add(resultsPanel, "RESULTS");
+                                cardLayout.show(cardPanel, "RESULTS");
 
-                            if (beatHandle != null)
-                                beatHandle.cancel(true);
-                            if (currentPeer != null) {
-                                currentPeer.setStatusMessageConsumer(null);
-                                currentPeer.setGuiMessageConsumer(null);
-                                currentPeer.setHeartbeatStatusConsumer(null);
-                            }
+                                if (beatHandle != null)
+                                    beatHandle.cancel(true);
+                                if (currentPeer != null) {
+                                    currentPeer.setStatusMessageConsumer(null);
+                                    currentPeer.setGuiMessageConsumer(null);
+                                    currentPeer.setHeartbeatStatusConsumer(null);
+                                }
 
-                        } else {
+                            } else {
                                 // Regular status message
                                 String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
                                 messageListModel.addElement("[" + timestamp + "] " + message);

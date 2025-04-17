@@ -466,6 +466,11 @@ public class PeerNode {
                 acknowledgment = true;
                 notifyAll();
             }
+
+            if (message.contains("Your vote was successfully counted")) {
+                sendToGUIMessageConsumer("HIDE_VOTING_OPTIONS");
+
+            }
             sendToGUI(message.substring(4));
         } else if (message.startsWith("VOTE:")) {
             String[] parts = message.split(":");
@@ -492,7 +497,12 @@ public class PeerNode {
                 sendToGUI("Duplicate vote detected from UUID: " + incomingUUID);
             }
         } else if (message.startsWith("DUPLICATE:")) {
+            synchronized (this) {
+                acknowledgment = true;
+                notifyAll();
+            }
             sendToGUI("Duplicate vote - your vote was not submitted");
+            sendToGUIMessageConsumer("HIDE_VOTING_OPTIONS_DUPLICATE");
         } else if (message.startsWith("UPDATE_VOTE_TALLY:")) {
             String vote = message.substring(55).trim();
             String uuid = message.substring(18, 54).trim();
@@ -627,7 +637,6 @@ public class PeerNode {
         // add vote to buffer
         this.voteBuffer = vote;
 
-        sendToGUIMessageConsumer("HIDE_VOTING_OPTIONS");
         this.acknowledgment = false;
         if (nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]))) {
 
