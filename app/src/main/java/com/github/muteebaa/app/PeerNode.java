@@ -288,7 +288,7 @@ public class PeerNode {
      * @param leaderAddress The leader node's address in the format "host:port".
      */
     public synchronized void registerWithLeader(String leaderAddress) {
-        // System.out.print("\n\nregistering with leader\n\n");
+         System.out.print("\n\nregistering with leader\n\n");
         this.acknowledgment = false;
 
         String leaderIp = leaderAddress.split(":")[0];
@@ -665,6 +665,7 @@ public class PeerNode {
      * Ends the voting process and broadcasts results.
      */
     public void endVoting() {
+        SessionRegistry.updateSession(this.sessionCode, "ended", null, null);
         String results = "VOTING_ENDED:Thanks for voting! Voting results: " + voteTally;
         System.out.println(ANSI_PURPLE + results.substring(13) + ANSI_RESET);
         nodeComm.broadcastMessage(results, peerNodes.values());

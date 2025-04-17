@@ -294,13 +294,10 @@ private static JPanel createNewElectionPanel() {
                             optionsPanel.setVisible(false);
                             optionsPanel.removeAll();
                             optionsPanel.revalidate();
-                            optionsPanel.repaint();
-            
-                            // Add to activity log
+                            optionsPanel.repaint();          
+
                             String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
-                            messageListModel.addElement("[" + timestamp + "] Voting completed - waiting for results");
-                        }
-                        else if (message.equals("SHOW_END_ELECTION")) {
+                        
                             // Remove existing buttons
                             buttonContainer.removeAll();
             
@@ -323,9 +320,9 @@ private static JPanel createNewElectionPanel() {
                             optionsPanel.repaint();
             
                             // Add to activity log
-                            String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
-                            messageListModel.addElement("[" + timestamp + "] All votes counted - ready to end election");
-                        }
+                            String timestamp2 = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                            messageListModel.addElement("[" + timestamp2 + "] All votes counted - ready to end election");
+                    }
                         else {
                             // Regular status message
                             String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
