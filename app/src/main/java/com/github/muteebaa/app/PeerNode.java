@@ -605,6 +605,7 @@ public class PeerNode {
         System.out.println(leaderAddress);
 
         this.broadcastMessage("LEADER:" + this.nodeId, null);
+        safeInterrupt(this.heartbeatMonitorThread);
 
         SessionRegistry.updateSession(this.sessionCode, null, leaderAddress.split(":")[0],
                 Integer.parseInt(leaderAddress.split(":")[1]));
