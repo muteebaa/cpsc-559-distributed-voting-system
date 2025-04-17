@@ -65,6 +65,9 @@ public class PeerNode {
     private volatile boolean bullied = false;// wether or not this node has been bullied
     private String voteBuffer = null;
 
+    // leader election lock
+    private static final Object electionLock = new Object();
+
     private static final int TIMEOUT = 5000; // T time units in milliseconds
     private static final int WAIT_TIME = 3000; // T' time units
 
