@@ -13,7 +13,7 @@ import java.nio.file.FileSystemException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
-import java.util.List;  // Import the correct List interface from java.util
+import java.util.List;
 import javax.swing.*;
 import java.awt.*;
 import java.util.stream.Collectors;
@@ -87,8 +87,23 @@ public class PeerNode {
         this.uuidSet = new ConcurrentSkipListSet<>();
     }
 
-    public boolean getHasVoted(){
+    public boolean getHasVoted() {
         return this.hasVoted;
+    }
+
+    private void broadcastMessage(String message, Collection<String> peerNodes) {
+        Collection<String> broadcastTo = peerNodes != null ? peerNodes : this.peerNodes.values();
+        Collection<String> failedToSendTo = nodeComm.broadcastMessage(message, broadcastTo);
+
+        if (!failedToSendTo.isEmpty()) {
+            System.out.println(ANSI_RED + "Failed to send message to: " + failedToSendTo + ANSI_RESET);
+            for (String peer : failedToSendTo) {
+                // Remove the failed peer from the list
+                this.peerNodes.values().removeIf(value -> value.equals(peer));
+            }
+            System.out.println(ANSI_RED + "Updated peer list after failure: " + this.peerNodes + ANSI_RESET);
+            this.broadcastMessage(message, null);
+        }
     }
 
     /**
@@ -231,7 +246,7 @@ public class PeerNode {
             SwingUtilities.invokeLater(() -> heartbeatStatusConsumer.accept(message));
         }
     }
-    
+
     private void startHeartbeat() {
         new Thread(() -> {
             while (!Thread.currentThread().isInterrupted()) {
@@ -239,8 +254,8 @@ public class PeerNode {
                     String message = "Sending heartbeat ... ❤️";
                     System.out.println(ANSI_RED + message + ANSI_RESET);
                     notifyHeartbeat(message);
-                    
-                    nodeComm.broadcastMessage("HEARTBEAT", peerNodes.values());
+
+                    this.broadcastMessage("HEARTBEAT", null);
                     try {
                         Thread.sleep(3000);
                     } catch (InterruptedException e) {
@@ -251,7 +266,6 @@ public class PeerNode {
             }
         }).start();
     }
-    
 
     private void startHeartbeatMonitor() {
         new Thread(() -> {
@@ -293,7 +307,7 @@ public class PeerNode {
      * @param leaderAddress The leader node's address in the format "host:port".
      */
     public synchronized void registerWithLeader(String leaderAddress) {
-         System.out.print("\n\nregistering with leader\n\n");
+        System.out.print("\n\nregistering with leader\n\n");
         this.acknowledgment = false;
 
         String leaderIp = leaderAddress.split(":")[0];
@@ -353,6 +367,13 @@ public class PeerNode {
         }
     }
 
+    private void broadcastPeerList() {
+        String peerList = peerNodes.entrySet().stream()
+                .map(entry -> entry.getKey() + "," + entry.getValue())
+                .collect(Collectors.joining("-"));
+        this.broadcastMessage("UPDATE_NEW_PEER:" + peerList, this.peerNodes.values());
+    }
+
     // Modified handleMessage method
     public void handleMessage(String message) {
         if (message.startsWith("REGISTER:")) {
@@ -363,22 +384,48 @@ public class PeerNode {
                     .orElse(0);
 
             int newId = highestCurrentId + 1;
-            String peerList = peerNodes.entrySet().stream()
-                    .map(entry -> entry.getKey() + "," + entry.getValue())
-                    .collect(Collectors.joining("-"));
 
             peerNodes.put(newId, peer);
-            nodeComm.broadcastMessage("UPDATE_NEW_PEER:" + newId + "," + peer + "-" + peerList, peerNodes.values());
+
+            // String peerList = peerNodes.entrySet().stream()
+            // .map(entry -> entry.getKey() + "," + entry.getValue())
+            // .collect(Collectors.joining("-"));
+            // this.broadcastMessage("UPDATE_NEW_PEER:" + newId + "," + peer + "-" +
+            // peerList, null);
+            this.broadcastPeerList();
 
             sendToGUI("New peer registered. Peer list: " + peerNodes);
             nodeComm.connectToNode(peer.split(":")[0], Integer.parseInt(peer.split(":")[1]));
             nodeComm.sendMessage("ACK: You are successfully registered.", nodeComm.getClientSocket());
-        }
-        else if (message.equals("HEARTBEAT")) {
+
+            // send this peer the vote tally
+            nodeComm.sendMessage("COMPLETE_VOTE_TALLY:" + voteTally, nodeComm.getClientSocket());
+
+            // send the UUID's that have already voted
+            nodeComm.sendMessage("UUID_SET:" + this.uuidSet, nodeComm.getClientSocket());
+
+        } else if (message.equals("HEARTBEAT")) {
             sendToGUI("Heartbeat received from leader");
             lastHeartbeatTime = System.currentTimeMillis();
-        } 
-        else if (message.startsWith("UPDATE_NEW_PEER:")) {
+        } else if (message.startsWith("UUID_SET:")) {
+            String uuidSetString = message.substring(9);
+            String[] uuids = uuidSetString.split(",");
+            for (String uuid : uuids) {
+                this.uuidSet.add(uuid);
+            }
+        } else if (message.startsWith("COMPLETE_VOTE_TALLY:")) {
+            String voteTallyString = message.substring(20);
+            String[] parts = voteTallyString.split(",");
+            for (String part : parts) {
+                String[] keyValue = part.split("=");
+                if (keyValue.length == 2) {
+                    String key = keyValue[0];
+                    int value = Integer.parseInt(keyValue[1]);
+                    voteTally.put(key, value);
+                }
+            }
+            sendToGUI("Vote tally received: " + voteTally);
+        } else if (message.startsWith("UPDATE_NEW_PEER:")) {
             String newPeerData = message.substring("UPDATE_NEW_PEER:".length()).trim();
             String[] parts = newPeerData.split("-");
 
@@ -396,15 +443,13 @@ public class PeerNode {
                 }
             }
             sendToGUI("Updated peer list: " + peerNodes);
-        } 
-        else if (message.startsWith("ACK:")) {
+        } else if (message.startsWith("ACK:")) {
             synchronized (this) {
                 acknowledgment = true;
                 notifyAll();
             }
             sendToGUI(message.substring(4));
-        } 
-        else if (message.startsWith("VOTE:")) {
+        } else if (message.startsWith("VOTE:")) {
             String[] parts = message.split(":");
             int nodeId = Integer.parseInt(parts[1]);
             String address = peerNodes.get(nodeId);
@@ -417,10 +462,10 @@ public class PeerNode {
                 this.uuidSet.add(incomingUUID);
                 updateVoteTally(vote);
                 if (leaderToken) {
-                    nodeComm.broadcastMessage("UPDATE_VOTE_TALLY:" + incomingUUID + ":" + vote, peerNodes.values());
+                    this.broadcastMessage("UPDATE_VOTE_TALLY:" + incomingUUID + ":" + vote, null);
                     nodeComm.connectToNode(host, port);
                     nodeComm.sendMessage("ACK: Your vote was successfully counted.", nodeComm.getClientSocket());
-                    sendToGUI("Vote counted: " + vote);                   
+                    sendToGUI("Vote counted: " + vote);
                 }
             } else {
                 nodeComm.connectToNode(host, port);
@@ -428,25 +473,20 @@ public class PeerNode {
                         nodeComm.getClientSocket());
                 sendToGUI("Duplicate vote detected from UUID: " + incomingUUID);
             }
-        } 
-        else if (message.startsWith("DUPLICATE:")) {
+        } else if (message.startsWith("DUPLICATE:")) {
             sendToGUI("Duplicate vote - your vote was not submitted");
-        } 
-        else if (message.startsWith("UPDATE_VOTE_TALLY:")) {
+        } else if (message.startsWith("UPDATE_VOTE_TALLY:")) {
             String vote = message.substring(54).trim();
             String uuid = message.substring(18, 54).trim();
             updateVoteTally(vote);
             updateUUID(uuid);
             sendToGUI("Vote tally updated: " + vote);
-        } 
-        else if (message.startsWith("START_VOTING")) {
+        } else if (message.startsWith("START_VOTING")) {
             sendToGUI("Voting has started!");
             new Thread(this::promptForVote).start();
-        } 
-        else if (message.startsWith("VOTING_ENDED:")) {
+        } else if (message.startsWith("VOTING_ENDED:")) {
             sendToGUI("Voting ended: " + message.substring(13));
-        } 
-        else if (message.startsWith("ELECTION:")) {
+        } else if (message.startsWith("ELECTION:")) {
             int idOfNodeRunning = Integer.parseInt(message.substring("ELECTION:".length()));
             sendToGUI("Election initiated by node: " + idOfNodeRunning);
 
@@ -463,15 +503,13 @@ public class PeerNode {
                     this.initiateElection();
                 }
             }
-        } 
-        else if (message.startsWith("BULLY")) {
+        } else if (message.startsWith("BULLY")) {
             sendToGUI("Received bully message - entering election");
             synchronized (this) {
                 this.bullied = true;
                 notifyAll();
             }
-        } 
-        else if (message.startsWith("LEADER:")) {
+        } else if (message.startsWith("LEADER:")) {
             String newLeadersId = message.substring(7);
             String newLeaderIp = peerNodes.get(Integer.parseInt(newLeadersId));
             sendToGUI("New leader elected: Node " + newLeadersId + " at " + newLeaderIp);
@@ -535,10 +573,16 @@ public class PeerNode {
         System.out.println(ANSI_CYAN + "Leader token set." + ANSI_RESET);
         // System.out.println(leaderAddress);
 
-        nodeComm.broadcastMessage("LEADER:" + this.nodeId, peerNodes.values());
+        this.broadcastMessage("LEADER:" + this.nodeId, null);
 
         SessionRegistry.updateSession(this.sessionCode, null, leaderAddress.split(":")[0],
                 Integer.parseInt(leaderAddress.split(":")[1]));
+
+        if (this.voteBuffer != null) {
+            // send buffer to leader
+            sendVoteToLeader(voteBuffer);
+            voteBuffer = null;
+        }
     }
 
     /**
@@ -558,7 +602,9 @@ public class PeerNode {
      * @param vote The vote being submitted.
      */
     public synchronized void sendVoteToLeader(String vote) {
-        
+        // add vote to buffer
+        this.voteBuffer = vote;
+
         sendToGUIMessageConsumer("HIDE_VOTING_OPTIONS");
         this.acknowledgment = false;
         if (nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]))) {
@@ -571,19 +617,12 @@ public class PeerNode {
                     wait();
                 } catch (InterruptedException e) {
                     // e.printStackTrace();
-
-                    // add vote to buffer
-                    voteBuffer = vote;
-
                     // initiate election
                     this.initiateElection();
                 }
             }
             this.hasVoted = true;
         } else {
-            // add vote to buffer
-            voteBuffer = vote;
-
             // initiate election
             this.initiateElection();
         }
@@ -595,16 +634,16 @@ public class PeerNode {
     public void startVoting() {
         // System.out.println("starting voting");
         // System.out.println("peer nodes: " + nodeComm.getPeerAddresses());
-        nodeComm.broadcastMessage("START_VOTING:" + voteTally.keySet(),
-                peerNodes.values());
+        this.broadcastMessage("START_VOTING:" + voteTally.keySet(), null);
 
     }
 
     public void promptForVote() {
         // This will now be handled by the GUI
         if (guiMessageConsumer != null) {
-                sendToGUIMessageConsumer("SHOW_VOTING_OPTIONS:" + String.join(",",SessionRegistry.getVotingOptions(sessionCode)));
-            
+            sendToGUIMessageConsumer(
+                    "SHOW_VOTING_OPTIONS:" + String.join(",", SessionRegistry.getVotingOptions(sessionCode)));
+
         }
     }
 
@@ -612,7 +651,7 @@ public class PeerNode {
         this.guiMessageConsumer = consumer;
         System.out.print("sending to the frontend the voting options");
     }
-    
+
     private void sendToGui(String message) {
         System.out.print(message);
         if (guiMessageConsumer != null) {
@@ -624,11 +663,11 @@ public class PeerNode {
 
         SwingUtilities.invokeLater(() -> {
             String input = JOptionPane.showInputDialog(
-                null,
-                "Type 'start' to begin voting:",
-                "Start Voting",
-                JOptionPane.PLAIN_MESSAGE);
-        
+                    null,
+                    "Type 'start' to begin voting:",
+                    "Start Voting",
+                    JOptionPane.PLAIN_MESSAGE);
+
             if (input != null && input.trim().equalsIgnoreCase("start")) {
                 new Thread(() -> {
                     SessionRegistry.updateSession(this.sessionCode, "started", null, null);
@@ -645,17 +684,17 @@ public class PeerNode {
         new Thread(() -> {
             // Update session status
             SessionRegistry.updateSession(this.sessionCode, "started", null, null);
-    
+
             // Leader-specific actions
             if (leaderToken) {
                 this.startVoting();
-        
+
                 // Broadcast voting start to all peers
-                nodeComm.broadcastMessage("START_VOTING:" + sessionCode, peerNodes.values());
+                this.broadcastMessage("START_VOTING:" + sessionCode, null);
             }
-    
+
             // Notify GUI to show voting options
-            String options = String.join(",",SessionRegistry.getVotingOptions(sessionCode));
+            String options = String.join(",", SessionRegistry.getVotingOptions(sessionCode));
             sendToGUIMessageConsumer("SHOW_VOTING_OPTIONS:" + options);
         }).start();
     }
@@ -667,7 +706,7 @@ public class PeerNode {
         SessionRegistry.updateSession(this.sessionCode, "ended", null, null);
         String results = "VOTING_ENDED:Thanks for voting! Voting results: " + voteTally;
         System.out.println(ANSI_PURPLE + results.substring(13) + ANSI_RESET);
-        nodeComm.broadcastMessage(results, peerNodes.values());
+        this.broadcastMessage(results, null);
     }
 
     /**
@@ -714,6 +753,8 @@ public class PeerNode {
         // runningi = true /* I am running in this elections */
         this.running = true;
 
+        System.out.println(ANSI_CYAN + "Peer nodes: " + peerNodes + ANSI_RESET);
+
         int highestCurrentId = peerNodes.keySet().stream()
                 .mapToInt(Number::intValue) // Convert Number to int
                 .max() // Get the maximum value
@@ -740,7 +781,7 @@ public class PeerNode {
 
             System.out.println(ANSI_CYAN + "Bigger ids: " + biggerIds + ANSI_RESET);
             // send election(i) to all Pj, where j > i
-            nodeComm.broadcastMessage("ELECTION:" + this.nodeId, biggerIds.values());
+            this.broadcastMessage("ELECTION:" + this.nodeId, biggerIds.values());
 
             // /* check if there are bigger guys out there */
             // wait for T time units

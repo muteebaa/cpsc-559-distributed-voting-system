@@ -5,7 +5,6 @@ import java.net.*;
 import java.util.*;
 import java.util.function.Consumer;
 
-
 //String filePath = System.getProperty("user.home")
 /**
  * Handles peer-to-peer communication between nodes.
@@ -25,7 +24,7 @@ public class NodeCommunication {
      */
     public void startServer(int port, Consumer<String> handler) {
         this.messageHandler = handler;
-        
+
         try {
             serverSocket = new ServerSocket(port);
             // System.out.println("server started!");
@@ -118,7 +117,8 @@ public class NodeCommunication {
      * @param message       The message to broadcast.
      * @param peerAddresses The list of peer addresses.
      */
-    public void broadcastMessage(String message, Collection<String> peerAddresses) {
+    public Collection<String> broadcastMessage(String message, Collection<String> peerAddresses) {
+        Collection<String> failedPeers = new ArrayList<>();
         for (String peer : peerAddresses) {
             String[] parts = peer.split(":");
             String host = parts[0];
@@ -128,12 +128,13 @@ public class NodeCommunication {
             try (Socket socket = new Socket(host, port)) {
                 sendMessage(message, socket);
             } catch (IOException e) {
+                // remove this peer from the list
+                failedPeers.add(peer);
                 System.err.println("Failed to send message to " + peer);
             }
         }
+        return failedPeers;
     }
-
-    
 
     /**
      * Retrieves the current vote tally.
