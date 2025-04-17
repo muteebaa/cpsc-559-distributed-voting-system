@@ -35,6 +35,12 @@ public class PeerNode {
     public static final String ANSI_CYAN = "\u001B[36m"; // election
     public static final String ANSI_WHITE = "\u001B[37m";
 
+    private Thread serverThread;
+    private Thread heartbeatThread;
+    private Thread heartbeatMonitorThread;
+    private Thread promptForVoteThread;
+    private Thread startVotingThread;
+
     private Consumer<String> heartbeatStatusConsumer;
     private Consumer<String> statusMessageConsumer;
 
@@ -234,7 +240,8 @@ public class PeerNode {
      * Starts the peer as a server and registers with the leader.
      */
     public void startPeer() {
-        new Thread(() -> nodeComm.startServer(port, this::handleMessage)).start();
+        serverThread = new Thread(() -> nodeComm.startServer(port, this::handleMessage));
+        serverThread.start();
     }
 
     public void setHeartbeatStatusConsumer(Consumer<String> consumer) {
@@ -248,7 +255,7 @@ public class PeerNode {
     }
 
     private void startHeartbeat() {
-        new Thread(() -> {
+        heartbeatThread = new Thread(() -> {
             while (!Thread.currentThread().isInterrupted()) {
                 if (this.hasLeaderToken()) {
                     String message = "Sending heartbeat ... ❤️";
@@ -264,18 +271,20 @@ public class PeerNode {
                     }
                 }
             }
-        }).start();
+        });
+        heartbeatThread.start();
     }
 
     private void startHeartbeatMonitor() {
-        new Thread(() -> {
-            while (true) {
-                // Only monitor if I'm not the leader and im not running in the leader election
+        heartbeatMonitorThread = new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted()) { // Check for interruption here
+                // Only monitor if I'm not the leader and I'm not running in the leader election
                 if (!this.hasLeaderToken() && !this.running) {
                     try {
                         Thread.sleep(5000); // Check every 5 seconds
                     } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
+                        Thread.currentThread().interrupt(); // Set the interrupt flag again
+                        break; // Exit the loop if interrupted
                     }
 
                     // If no heartbeat received for 10+ sec → Start election
@@ -287,7 +296,8 @@ public class PeerNode {
                     }
                 }
             }
-        }).start();
+        });
+        heartbeatMonitorThread.start();
     }
 
     public String getMyIp() {
@@ -491,7 +501,8 @@ public class PeerNode {
             sendToGUI("Vote tally updated: " + vote);
         } else if (message.startsWith("START_VOTING")) {
             sendToGUI("Voting has started!");
-            new Thread(this::promptForVote).start();
+            promptForVoteThread = new Thread(this::promptForVote);
+            promptForVoteThread.start();
         } else if (message.startsWith("VOTING_ENDED:")) {
             sendToGUI("Voting ended: " + message.substring(13));
             sendToGUIMessageConsumer("FINAL_RESULT:" + message.substring(13));
@@ -668,45 +679,44 @@ public class PeerNode {
         }
     }
 
-    public void waitForStartVoting() {
+    // public void waitForStartVoting() {
 
-        SwingUtilities.invokeLater(() -> {
-            String input = JOptionPane.showInputDialog(
-                    null,
-                    "Type 'start' to begin voting:",
-                    "Start Voting",
-                    JOptionPane.PLAIN_MESSAGE);
+    // SwingUtilities.invokeLater(() -> {
+    // String input = JOptionPane.showInputDialog(
+    // null,
+    // "Type 'start' to begin voting:",
+    // "Start Voting",
+    // JOptionPane.PLAIN_MESSAGE);
 
-            if (input != null && input.trim().equalsIgnoreCase("start")) {
-                new Thread(() -> {
-                    if (SessionRegistry.updateSession(this.sessionCode, "started", null, null)) {
-                        this.startVoting();
-                        this.promptForVote();
-                    }
-                }).start();
-            } else {
-                sendToGui("Invalid input. Type 'start' to begin.");
-            }
-        });
-    }
+    // if (input != null && input.trim().equalsIgnoreCase("start")) {
+    // = new Thread(() -> {
+    // if (SessionRegistry.updateSession(this.sessionCode, "started", null, null)) {
+    // this.startVoting();
+    // this.promptForVote();
+    // }
+    // });
+    // startVotingThread.start();
+    // } else {
+    // sendToGui("Invalid input. Type 'start' to begin.");
+    // }
+    // });
+    // }
 
     public void startVotingButtonClicked() {
-        new Thread(() -> {
-            // Update session status
-            if (SessionRegistry.updateSession(this.sessionCode, "started", null, null)) {
-                // Leader-specific actions
-                if (leaderToken) {
-                    this.startVoting();
+        // Update session status
+        if (SessionRegistry.updateSession(this.sessionCode, "started", null, null)) {
+            // Leader-specific actions
+            if (leaderToken) {
+                this.startVoting();
 
-                    // Broadcast voting start to all peers
-                    this.broadcastMessage("START_VOTING:" + sessionCode, null);
-                }
-
-                // Notify GUI to show voting options
-                String options = String.join(",", SessionRegistry.getVotingOptions(sessionCode));
-                sendToGUIMessageConsumer("SHOW_VOTING_OPTIONS:" + options);
+                // Broadcast voting start to all peers
+                this.broadcastMessage("START_VOTING:" + sessionCode, null);
             }
-        }).start();
+
+            // Notify GUI to show voting options
+            String options = String.join(",", SessionRegistry.getVotingOptions(sessionCode));
+            sendToGUIMessageConsumer("SHOW_VOTING_OPTIONS:" + options);
+        }
     }
 
     /**
@@ -843,4 +853,54 @@ public class PeerNode {
 
     }
 
+    /**
+     * Safely interrupts a thread if it's alive.
+     *
+     * @param t The thread to interrupt.
+     */
+    private void safeInterrupt(Thread t) {
+        if (t == null) {
+            System.out.println("Warning: Thread is null");
+            return;
+        }
+        System.out.println(ANSI_RED + "Interrupting thread: " + t.getName() + ANSI_RESET);
+        if (t != null && t.isAlive()) {
+            // Interrupt the thread
+            t.interrupt();
+
+            // If the thread is blocking on something like sleep or accept, ensure it exits.
+            try {
+                System.out.println(ANSI_RED + "Waiting for thread to finish..." + ANSI_RESET);
+                t.join(); // Make sure the thread finishes execution after interruption.
+            } catch (InterruptedException e) {
+                // Handle the exception if the current thread was interrupted while waiting for
+                // t to finish
+                Thread.currentThread().interrupt(); // Restore interrupt status for the current thread
+            }
+        }
+    }
+
+    /**
+     * Shuts down the peer node and cleans up resources.
+     */
+    public void shutdown() {
+        safeInterrupt(this.heartbeatThread);
+        safeInterrupt(this.heartbeatMonitorThread);
+        safeInterrupt(this.promptForVoteThread);
+        safeInterrupt(this.startVotingThread);
+
+        System.out.println(ANSI_RED + "Shutting down peer node..." + ANSI_RESET);
+
+        this.running = false;
+        this.bullied = false;
+        this.leaderToken = false;
+        this.acknowledgment = false;
+        this.hasVoted = false;
+        this.voteBuffer = null;
+        this.sessionCode = null;
+        this.leaderAddress = null;
+
+        nodeComm.closeServer();
+        safeInterrupt(this.serverThread);
+    }
 }

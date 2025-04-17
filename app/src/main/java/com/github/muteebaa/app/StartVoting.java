@@ -1,10 +1,14 @@
 package com.github.muteebaa.app;
 
 import javax.swing.*;
+import javax.swing.table.JTableHeader;
+
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.text.SimpleDateFormat;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -348,30 +352,80 @@ public class StartVoting {
                             }
                         } else if (message.startsWith("FINAL_RESULT")) {
                             String results = message.substring("FINAL_RESULT:".length()).trim();
-                            System.out.print("Coming");
-                            // Show results in a popup
-                            JOptionPane.showMessageDialog(
-                                    mainFrame,
-                                    results,
-                                    "Election Results",
-                                    JOptionPane.INFORMATION_MESSAGE);
+                            String cleanResults = results.replace("{", "").replace("}", "");
 
-                            // Return to main screen after user clicks OK
-                            cardLayout.show(cardPanel, "MAIN");
+                            String[] entries = cleanResults.split(",");
 
-                            // Clean up resources
-                            if (beatHandle != null) {
-                                beatHandle.cancel(true);
+                            StringBuilder formattedResults = new StringBuilder();
+                            formattedResults.append("Thanks for joining the session! Here is the final count:\n\n");
+
+                            String[] columnNames = { "Option", "Votes" };
+
+                            List<String[]> rowDataList = new ArrayList<>();
+
+                            for (String entry : entries) {
+                                String[] keyValue = entry.split("=");
+
+                                if (keyValue.length == 2) {
+                                    String option = keyValue[0].trim();
+                                    String votes = keyValue[1].trim();
+                                    rowDataList.add(new String[] { option, votes });
+                                }
                             }
+
+                            String[][] rowData = rowDataList.toArray(new String[0][]);
+
+                            JTable resultsTable = new JTable(rowData, columnNames);
+
+                            resultsTable.setEnabled(false);
+                            resultsTable.setFont(new Font("Arial", Font.PLAIN, 18));
+                            resultsTable.setRowHeight(30);
+                            resultsTable.setShowGrid(true);
+                            resultsTable.setGridColor(Color.BLACK);
+
+                            JTableHeader header = resultsTable.getTableHeader();
+                            header.setFont(new Font("Arial", Font.BOLD, 20));
+                            header.setPreferredSize(new Dimension(header.getPreferredSize().width, 40));
+
+                            JPanel resultsPanel = new JPanel(new BorderLayout(20, 20));
+                            resultsPanel.setBorder(BorderFactory.createEmptyBorder(40, 60, 40, 60));
+                            resultsPanel.setBackground(Color.WHITE);
+
+                            JLabel resultsTitleLabel = new JLabel("Election Results", SwingConstants.CENTER);
+                            resultsTitleLabel.setFont(new Font("Arial", Font.BOLD, 28));
+                            resultsTitleLabel.setForeground(new Color(52, 73, 94));
+
+                            JScrollPane resultsScrollPane = new JScrollPane(resultsTable);
+                            resultsScrollPane.setBorder(BorderFactory.createLineBorder(new Color(189, 195, 199), 1));
+                            resultsScrollPane.setPreferredSize(new Dimension(400, 300));
+
+                            JButton backToMenuButton = new JButton("Back to Main Menu");
+                            styleButton(backToMenuButton, new Color(41, 128, 185), Color.WHITE);
+                            backToMenuButton.setPreferredSize(new Dimension(220, 45));
+                            backToMenuButton.setFocusPainted(false);
+                            backToMenuButton.addActionListener(ev -> StartVoting.resetState());
+
+                            JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+                            bottomPanel.setBackground(Color.WHITE);
+                            bottomPanel.add(backToMenuButton);
+
+                            // Assemble Results Panel
+                            resultsPanel.add(resultsTitleLabel, BorderLayout.NORTH);
+                            resultsPanel.add(new JLabel("Thanks for joining the session! Here is the final count:"));
+                            resultsPanel.add(resultsScrollPane, BorderLayout.CENTER);
+                            resultsPanel.add(bottomPanel, BorderLayout.SOUTH);
+
+                            cardPanel.add(resultsPanel, "RESULTS");
+                            cardLayout.show(cardPanel, "RESULTS");
+
+                            if (beatHandle != null)
+                                beatHandle.cancel(true);
                             if (currentPeer != null) {
                                 currentPeer.setStatusMessageConsumer(null);
                                 currentPeer.setGuiMessageConsumer(null);
                                 currentPeer.setHeartbeatStatusConsumer(null);
                             }
 
-                            // Add to activity log
-                            String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
-                            messageListModel.addElement("[" + timestamp + "] Election completed - results displayed");
                         } else {
                             // Regular status message
                             String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
@@ -894,6 +948,23 @@ public class StartVoting {
         panel.add(buttonPanel, BorderLayout.SOUTH);
 
         return panel;
+    }
+
+    private static void resetState() {
+        System.out.println("Resetting state...");
+        if (beatHandle != null) {
+            beatHandle.cancel(true);
+            System.out.println("Heartbeat handle cancelled.");
+        }
+        if (currentPeer != null) {
+            currentPeer.shutdown();
+            System.out.println("Current peer shut down.");
+            currentPeer = null;
+        }
+
+        cardLayout.show(cardPanel, "MAIN");
+        System.out.println("State reset.");
+
     }
 
     private static class StatusMessageRenderer extends DefaultListCellRenderer {

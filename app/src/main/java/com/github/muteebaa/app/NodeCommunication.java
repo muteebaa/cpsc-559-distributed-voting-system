@@ -16,6 +16,8 @@ public class NodeCommunication {
     private final Map<String, Integer> voteTally = new HashMap<>();
     private Consumer<String> messageHandler; // Callback function for message handling
 
+    private Thread handleIncomingMessageThread;
+
     /**
      * Starts a server to listen for incoming peer connections.
      *
@@ -27,10 +29,19 @@ public class NodeCommunication {
 
         try {
             serverSocket = new ServerSocket(port);
-            // System.out.println("server started!");
             while (true) {
-                Socket socket = serverSocket.accept();
-                new Thread(() -> handleIncomingMessage(socket)).start(); // Run message handling on a new thread
+                try {
+                    Socket socket = serverSocket.accept();
+                    handleIncomingMessageThread = new Thread(() -> handleIncomingMessage(socket));
+                    handleIncomingMessageThread.start();
+                } catch (SocketException e) {
+                    if (serverSocket.isClosed()) {
+                        System.out.println("Server socket closed, exiting server thread gracefully.");
+                        break;
+                    } else {
+                        e.printStackTrace();
+                    }
+                }
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -151,5 +162,22 @@ public class NodeCommunication {
      */
     public Socket getClientSocket() {
         return clientSocket;
+    }
+
+    /**
+     * Closes the server socket.
+     */
+    public void closeServer() {
+        try {
+            if (handleIncomingMessageThread != null && handleIncomingMessageThread.isAlive()) {
+                handleIncomingMessageThread.interrupt();
+            }
+
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                serverSocket.close();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
