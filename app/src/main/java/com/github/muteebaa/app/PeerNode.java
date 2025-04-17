@@ -65,7 +65,7 @@ public class PeerNode {
     private volatile boolean bullied = false;// wether or not this node has been bullied
     private String voteBuffer = null;
 
-    private statis final Object electionLock = new Object()
+    private static final Object electionLock = new Object();
 
     private static final int TIMEOUT = 5000; // T time units in milliseconds
     private static final int WAIT_TIME = 3000; // T' time units
@@ -513,8 +513,7 @@ public class PeerNode {
             sendToGUI("Vote tally updated: " + vote);
         } else if (message.startsWith("START_VOTING")) {
             sendToGUI("Voting has started!");
-            promptForVoteThread = new Thread(this::promptForVote);
-            promptForVoteThread.start();
+            this.promptForVote();
         } else if (message.startsWith("VOTING_ENDED:")) {
             sendToGUI("Voting ended: " + message.substring(13));
             sendToGUIMessageConsumer("FINAL_RESULT:" + message.substring(13));
@@ -635,7 +634,7 @@ public class PeerNode {
      *
      * @param vote The vote being submitted.
      */
-    public synchronized void sendVoteToLeader(String vote) {
+    public void sendVoteToLeader(String vote) {
         // add vote to buffer
         this.voteBuffer = vote;
 
@@ -785,7 +784,7 @@ public class PeerNode {
     public void initiateElection() {
         synchronized (this.electionLock)
         {
-            if(this.hasLeaderToken){
+            if(this.hasLeaderToken()){
                 return;
             }
         System.out.println(ANSI_CYAN + "Initiating election..." + ANSI_RESET);
