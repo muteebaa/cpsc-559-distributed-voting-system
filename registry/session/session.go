@@ -55,11 +55,11 @@ func (id *Id) UnmarshalJSON(data []byte) error {
 // Updates s1 with the (possibly empty) IP and port of s2. Any other attributes
 // are simply ignored if present. The IP and port are also ignored if empty
 func (s1 *Session) Update(s2 *Session) {
-	if s1.Host != nil {
-		s2.Host = s1.Host
+	if s2.Host != nil {
+		s1.Host = s2.Host
 	}
 
 	if s1.Port != 0 {
-		s2.Port = s1.Port
+		s1.Port = s2.Port
 	}
 }

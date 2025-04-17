@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -13,6 +12,8 @@ import (
 
 	"github.com/muteebaa/cpsc-559-distributed-voting-system/session"
 )
+
+var sessionStore session.SessionStorer = session.New()
 
 func Handler() http.Handler {
 	r := chi.NewRouter()
@@ -34,21 +35,10 @@ func getSingleSession(w http.ResponseWriter, r *http.Request) {
 	logger := httplog.LogEntry(r.Context())
 	id := session.Id(chi.URLParam(r, "sess"))
 
-	d, err := session.Find(id)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			logger.Debug("Session could not be located", "id", id)
-			http.Error(w, "Session not found", http.StatusNotFound)
-		} else {
-			logger.Debug("Session could not be read", "id", id)
-			http.Error(w, "Session could not be read", http.StatusInternalServerError)
-		}
-
-		return
-	}
+	s := sessionStore.Get(id)
 
 	e := json.NewEncoder(w)
-	if err := e.Encode(d); err != nil {
+	if err := e.Encode(s); err != nil {
 		logger.Error("Could not finish connection")
 		http.Error(w, "Could not finish writing response", http.StatusInternalServerError)
 		return
@@ -65,18 +55,13 @@ func getSingleSession(w http.ResponseWriter, r *http.Request) {
 //	{"session":["ABC123","ABC124"]}
 func getAllSessionInfo(w http.ResponseWriter, r *http.Request) {
 	logger := httplog.LogEntry(r.Context())
-	s, err := session.List()
-	if err != nil {
-		logger.Error("Failed to read session directory info")
-		http.Error(w, "Failed to retrieve sessions", http.StatusInternalServerError)
-		return
-	}
+	s := sessionStore.List()
 
 	if s == nil {
-		s = make([]string, 0)
+		s = make([]session.Id, 0)
 	}
 
-	resp := map[string][]string{"sessions": s}
+	resp := map[string][]session.Id{"sessions": s}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		logger.Error("Could not finish writing response")
 		http.Error(w, "Connection ended prematurely", http.StatusInternalServerError)
@@ -92,15 +77,10 @@ func getAllSessionInfo(w http.ResponseWriter, r *http.Request) {
 func getAllSessions(w http.ResponseWriter, r *http.Request) {
 	logger := httplog.LogEntry(r.Context())
 	// TODO: Handle nil arrays
-	s, err := session.FindAll()
-	if err != nil {
-		logger.Error("Failed to read all sessions")
-		http.Error(w, "Failed to read all sessions", http.StatusInternalServerError)
-		return
-	}
+	s := sessionStore.GetAll()
 
 	if s == nil {
-		s = make([]session.Session, 0)
+		s = make([]*session.Session, 0)
 	}
 
 	if err := json.NewEncoder(w).Encode(s); err != nil {
@@ -142,13 +122,19 @@ func addSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := session.Create(s); err != nil {
-		logger.Error("Could not add session", "session", s)
-		http.Error(w, "Failed to add session", http.StatusInternalServerError)
+	err := sessionStore.Add(&s)
+	if err != nil {
+		switch {
+		case errors.Is(err, session.ErrInvalidSession):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		default:
+			logger.Error("Could not add session", "session", s)
+			http.Error(w, "Failed to add session", http.StatusInternalServerError)
+		}
 		return
 	}
 
-	if err := json.NewEncoder(w).Encode(s); err != nil {
+	if err := json.NewEncoder(w).Encode(s.Id); err != nil {
 		logger.Error("Could not finish writing response")
 		http.Error(w, "Connection ended prematurely", http.StatusInternalServerError)
 		return
@@ -172,10 +158,17 @@ func updateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := session.Id(chi.URLParam(r, "sess"))
-	if err := session.Update(id, s); err != nil {
-		logger.Error("Could not update session", "session", s)
-		http.Error(w, "Could not update session", http.StatusInternalServerError)
+	s.Id = session.Id(chi.URLParam(r, "sess"))
+	err := sessionStore.Update(&s)
+	if err != nil {
+		switch {
+		case errors.Is(err, session.ErrUpdateNonExistent):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		default:
+			logger.Error("Could not update session", "session", s)
+			http.Error(w, "Could not update session", http.StatusInternalServerError)
+		}
+		return
 	}
 
 	w.WriteHeader(http.StatusOK)

@@ -15,7 +15,6 @@ import (
 	"github.com/go-chi/httplog/v2"
 
 	"github.com/muteebaa/cpsc-559-distributed-voting-system/node"
-	"github.com/muteebaa/cpsc-559-distributed-voting-system/session"
 )
 
 // Handles basic configuration for the rest of the program
@@ -55,11 +54,6 @@ func main() {
 // Begin running the HTTP server, ensuring that shutdowns may be handled
 // gracefully
 func run(port int, logOpts httplog.Options) {
-	err := session.CreateDir()
-	if err != nil {
-		panic(err)
-	}
-
 	server := &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", port), Handler: service(logOpts)}
 	serverCtx, serverStopCtx := context.WithCancel(context.Background())
 
@@ -92,7 +86,7 @@ func run(port int, logOpts httplog.Options) {
 		serverStopCtx()
 	}()
 
-	err = server.ListenAndServe()
+	err := server.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
 		slog.Error("server closed unexpectedly")
 		panic(err)
