@@ -378,31 +378,32 @@ public class PeerNode {
     public void handleMessage(String message) {
         if (message.startsWith("REGISTER:")) {
             String peer = message.substring(9);
-            int highestCurrentId = peerNodes.keySet().stream()
-                    .mapToInt(Number::intValue)
-                    .max()
-                    .orElse(0);
+            System.out.println(peer);
+            if (!peerNodes.values().contains(peer)) {
+                int highestCurrentId = peerNodes.keySet().stream()
+                        .mapToInt(Number::intValue)
+                        .max()
+                        .orElse(0);
 
-            int newId = highestCurrentId + 1;
+                int newId = highestCurrentId + 1;
 
-            peerNodes.put(newId, peer);
+                peerNodes.put(newId, peer);
 
-            // String peerList = peerNodes.entrySet().stream()
-            // .map(entry -> entry.getKey() + "," + entry.getValue())
-            // .collect(Collectors.joining("-"));
-            // this.broadcastMessage("UPDATE_NEW_PEER:" + newId + "," + peer + "-" +
-            // peerList, null);
-            this.broadcastPeerList();
+                // String peerList = peerNodes.entrySet().stream()
+                // .map(entry -> entry.getKey() + "," + entry.getValue())
+                // .collect(Collectors.joining("-"));
+                // this.broadcastMessage("UPDATE_NEW_PEER:" + newId + "," + peer + "-" +
+                // peerList, null);
+                this.broadcastPeerList();
 
-            sendToGUI("New peer registered. Peer list: " + peerNodes);
-            nodeComm.connectToNode(peer.split(":")[0], Integer.parseInt(peer.split(":")[1]));
-            nodeComm.sendMessage("ACK: You are successfully registered.", nodeComm.getClientSocket());
-
-            // send this peer the vote tally
-            nodeComm.sendMessage("COMPLETE_VOTE_TALLY:" + voteTally, nodeComm.getClientSocket());
-
-            // send the UUID's that have already voted
-            nodeComm.sendMessage("UUID_SET:" + this.uuidSet, nodeComm.getClientSocket());
+                sendToGUI("New peer registered. Peer list: " + peerNodes);
+                nodeComm.connectToNode(peer.split(":")[0], Integer.parseInt(peer.split(":")[1]));
+                nodeComm.sendMessage("ACK: You are successfully registered.", nodeComm.getClientSocket());
+            } else {
+                sendToGUI(peer + " is back!");
+                nodeComm.connectToNode(peer.split(":")[0], Integer.parseInt(peer.split(":")[1]));
+                nodeComm.sendMessage("ACK: Welcome back!", nodeComm.getClientSocket());
+            }
 
         } else if (message.equals("HEARTBEAT")) {
             sendToGUI("Heartbeat received from leader");
@@ -486,6 +487,7 @@ public class PeerNode {
             new Thread(this::promptForVote).start();
         } else if (message.startsWith("VOTING_ENDED:")) {
             sendToGUI("Voting ended: " + message.substring(13));
+            sendToGUIMessageConsumer("FINAL_RESULT:" + message.substring(13));
         } else if (message.startsWith("ELECTION:")) {
             int idOfNodeRunning = Integer.parseInt(message.substring("ELECTION:".length()));
             sendToGUI("Election initiated by node: " + idOfNodeRunning);
@@ -704,9 +706,11 @@ public class PeerNode {
      */
     public void endVoting() {
         SessionRegistry.updateSession(this.sessionCode, "ended", null, null);
-        String results = "VOTING_ENDED:Thanks for voting! Voting results: " + voteTally;
+        String results = "VOTING_ENDED:Voting has ended! Results: " + voteTally;
         System.out.println(ANSI_PURPLE + results.substring(13) + ANSI_RESET);
+        sendToGUIMessageConsumer("FINAL_RESULT:" + voteTally);
         this.broadcastMessage(results, null);
+
     }
 
     /**
