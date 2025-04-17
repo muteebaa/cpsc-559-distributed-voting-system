@@ -445,6 +445,7 @@ public class PeerNode {
         } 
         else if (message.startsWith("VOTING_ENDED:")) {
             sendToGUI("Voting ended: " + message.substring(13));
+            sendToGUIMessageConsumer("FINAL_RESULT:" + message.substring(13));
         } 
         else if (message.startsWith("ELECTION:")) {
             int idOfNodeRunning = Integer.parseInt(message.substring("ELECTION:".length()));
@@ -665,9 +666,11 @@ public class PeerNode {
      */
     public void endVoting() {
         SessionRegistry.updateSession(this.sessionCode, "ended", null, null);
-        String results = "VOTING_ENDED:Thanks for voting! Voting results: " + voteTally;
+        String results = "VOTING_ENDED:Voting has ended! Results: " + voteTally;
         System.out.println(ANSI_PURPLE + results.substring(13) + ANSI_RESET);
+        sendToGUIMessageConsumer("FINAL_RESULT:" + voteTally);
         nodeComm.broadcastMessage(results, peerNodes.values());
+        
     }
 
     /**

@@ -58,15 +58,27 @@ public class StartVoting {
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        JLabel welcomeLabel = new JLabel("Welcome to the voting system!");
-        welcomeLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        JLabel welcomeLabel = new JLabel("Welcome to the Voting System!");
+        welcomeLabel.setFont(new Font("Arial", Font.BOLD, 24));
+        welcomeLabel.setForeground(new Color(23, 3, 18)); // Dark blue-gray text
         welcomeLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        welcomeLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0));
 
         JPanel optionsPanel = new JPanel(new GridLayout(3, 1, 10, 10));
         
         JButton newElectionBtn = new JButton("1. Start a new election");
         JButton joinElectionBtn = new JButton("2. Join an existing election");
         JButton viewSessionsBtn = new JButton("3. View all sessions");
+
+        styleButton(newElectionBtn, new Color(83, 18, 83), Color.WHITE); // Steel blue
+        styleButton(joinElectionBtn, new Color(83, 18, 83), Color.WHITE); // Green
+        styleButton(viewSessionsBtn, new Color(83, 18, 83), Color.WHITE); // Purple
+
+        // Set preferred size for consistency
+        Dimension buttonSize = new Dimension(250, 50);
+        newElectionBtn.setPreferredSize(buttonSize);
+        joinElectionBtn.setPreferredSize(buttonSize);
+        viewSessionsBtn.setPreferredSize(buttonSize);
 
         newElectionBtn.addActionListener(e -> cardLayout.show(cardPanel, "NEW_ELECTION"));
         joinElectionBtn.addActionListener(e -> showJoinElectionPanel());
@@ -150,17 +162,26 @@ private static JPanel createNewElectionPanel() {
     buttonPanel.setBackground(new Color(240, 240, 245));
 
     JButton createBtn = new JButton("Create Session");
-    styleButton(createBtn, new Color(70, 130, 180), Color.WHITE);
+    styleButton(createBtn, new Color(83, 18, 83), Color.WHITE);
     createBtn.setPreferredSize(new Dimension(180, 40));
 
-    JButton backBtn = new JButton("Back to Main Menu");
+    JButton backBtn = new JButton("Main Menu");
     styleButton(backBtn, new Color(220, 80, 60), Color.WHITE);
     backBtn.setPreferredSize(new Dimension(180, 40));
 
     createBtn.addActionListener(e -> {
         try {
             int myPort = Integer.parseInt(portField.getText());
+
             String options = optionsField.getText();
+
+            
+            if (options.isEmpty()) {
+                JOptionPane.showMessageDialog(mainFrame, 
+                    "Please enter voting options (comma-separated)", 
+                    "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
 
             currentPeer = new PeerNode(myPort);
         
@@ -325,6 +346,34 @@ private static JPanel createNewElectionPanel() {
                                 messageListModel.addElement("[" + timestamp2 + "] All votes counted - ready to end election");
                             }
                     }
+                    else if (message.startsWith("FINAL_RESULT")) {
+                        String results = message.substring("FINAL_RESULT:".length()).trim();
+                        System.out.print("Comming");
+                        // Show results in a popup
+                        JOptionPane.showMessageDialog(
+                            mainFrame,
+                            results,
+                            "Election Results",
+                            JOptionPane.INFORMATION_MESSAGE
+                        );
+    
+                        // Return to main screen after user clicks OK
+                        cardLayout.show(cardPanel, "MAIN");
+    
+                        // Clean up resources
+                        if (beatHandle != null) {
+                            beatHandle.cancel(true);
+                        }
+                        if (currentPeer != null) {
+                            currentPeer.setStatusMessageConsumer(null);
+                            currentPeer.setGuiMessageConsumer(null);
+                            currentPeer.setHeartbeatStatusConsumer(null);
+                        }
+    
+                        // Add to activity log
+                        String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                        messageListModel.addElement("[" + timestamp + "] Election completed - results displayed");
+                    }
                         else {
                             // Regular status message
                             String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
@@ -439,7 +488,7 @@ private static void styleButton(JButton button, Color bgColor, Color textColor) 
     styleButton(joinBtn, new Color(70, 130, 180), Color.WHITE);
     joinBtn.setPreferredSize(new Dimension(180, 40));
 
-    JButton backBtn = new JButton("Back to Main Menu");
+    JButton backBtn = new JButton("Main Menu");
     styleButton(backBtn, new Color(220, 80, 60), Color.WHITE);
     backBtn.setPreferredSize(new Dimension(180, 40));
 
@@ -685,6 +734,34 @@ private static void styleButton(JButton button, Color bgColor, Color textColor) 
             
                             
                     }
+                    else if (message.startsWith("FINAL_RESULT")) {
+                        String results = message.substring("FINAL_RESULT:".length()).trim();
+    
+                        // Show results in a popup
+                        JOptionPane.showMessageDialog(
+                            mainFrame,
+                            results,
+                            "Election Results",
+                            JOptionPane.INFORMATION_MESSAGE
+                        );
+    
+                        // Return to main screen after user clicks OK
+                        cardLayout.show(cardPanel, "MAIN");
+    
+                        // Clean up resources
+                        if (beatHandle != null) {
+                            beatHandle.cancel(true);
+                        }
+                        if (currentPeer != null) {
+                            currentPeer.setStatusMessageConsumer(null);
+                            currentPeer.setGuiMessageConsumer(null);
+                            currentPeer.setHeartbeatStatusConsumer(null);
+                        }
+    
+                        // Add to activity log
+                        String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                        messageListModel.addElement("[" + timestamp + "] Election completed - results displayed");
+                    }
                         else {
                             // Regular status message
                             String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
@@ -744,8 +821,10 @@ private static void styleButton(JButton button, Color bgColor, Color textColor) 
         JScrollPane scrollPane = new JScrollPane(sessionListPanel);
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
 
-        JButton backButton = new JButton("Back to Main Menu");
+        JButton backButton = new JButton("Main Menu");
         backButton.addActionListener(e -> cardLayout.show(cardPanel, "MAIN"));
+        styleButton(backButton, new Color(220, 80, 60), Color.WHITE);
+        backButton.setPreferredSize(new Dimension(150, 35));
 
         JPanel buttonPanel = new JPanel();
         buttonPanel.add(backButton);
