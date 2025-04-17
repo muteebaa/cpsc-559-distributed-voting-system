@@ -97,11 +97,12 @@ public class PeerNode {
 
         if (!failedToSendTo.isEmpty()) {
             System.out.println(ANSI_RED + "Failed to send message to: " + failedToSendTo + ANSI_RESET);
+
             for (String peer : failedToSendTo) {
                 this.peerNodes.values().removeIf(value -> value.equals(peer));
             }
             System.out.println(ANSI_RED + "Updated peer list after failure: " + this.peerNodes + ANSI_RESET);
-            this.broadcastMessage(message, null);
+            this.broadcastPeerList();
         }
     }
 
@@ -370,7 +371,9 @@ public class PeerNode {
         String peerList = peerNodes.entrySet().stream()
                 .map(entry -> entry.getKey() + "," + entry.getValue())
                 .collect(Collectors.joining("-"));
+
         this.broadcastMessage("UPDATE_NEW_PEER:" + peerList, this.peerNodes.values());
+        sendToGUI("Updated peer list: " + peerNodes);
     }
 
     // Modified handleMessage method
@@ -392,22 +395,39 @@ public class PeerNode {
             nodeComm.connectToNode(peer.split(":")[0], Integer.parseInt(peer.split(":")[1]));
             nodeComm.sendMessage("ACK: You are successfully registered.", nodeComm.getClientSocket());
 
+            // send this peer the vote tally
+            nodeComm.connectToNode(peer.split(":")[0], Integer.parseInt(peer.split(":")[1]));
+            nodeComm.sendMessage("COMPLETE_VOTE_TALLY:" + voteTally.toString(), nodeComm.getClientSocket());
+
+            // send the UUID's that have already voted
+            nodeComm.connectToNode(peer.split(":")[0], Integer.parseInt(peer.split(":")[1]));
+            nodeComm.sendMessage("UUID_SET:" + this.uuidSet.toString(), nodeComm.getClientSocket());
+
         } else if (message.equals("HEARTBEAT")) {
             sendToGUI("Heartbeat received from leader");
             lastHeartbeatTime = System.currentTimeMillis();
         } else if (message.startsWith("UUID_SET:")) {
             String uuidSetString = message.substring(9);
+            uuidSetString = uuidSetString.substring(1, uuidSetString.length() - 1);
+            System.out.println(uuidSetString);
+
             String[] uuids = uuidSetString.split(",");
             for (String uuid : uuids) {
+                uuid = uuid.trim();
+                System.out.println("--" + uuid);
+                if (uuid.length() != 36) {
+                    continue;
+                }
                 this.uuidSet.add(uuid);
             }
         } else if (message.startsWith("COMPLETE_VOTE_TALLY:")) {
             String voteTallyString = message.substring(20);
+            voteTallyString = voteTallyString.substring(1, voteTallyString.length() - 1);
             String[] parts = voteTallyString.split(",");
             for (String part : parts) {
                 String[] keyValue = part.split("=");
                 if (keyValue.length == 2) {
-                    String key = keyValue[0];
+                    String key = keyValue[0].trim();
                     int value = Integer.parseInt(keyValue[1]);
                     voteTally.put(key, value);
                 }
@@ -659,9 +679,10 @@ public class PeerNode {
 
             if (input != null && input.trim().equalsIgnoreCase("start")) {
                 new Thread(() -> {
-                    SessionRegistry.updateSession(this.sessionCode, "started", null, null);
-                    this.startVoting();
-                    this.promptForVote();
+                    if (SessionRegistry.updateSession(this.sessionCode, "started", null, null)) {
+                        this.startVoting();
+                        this.promptForVote();
+                    }
                 }).start();
             } else {
                 sendToGui("Invalid input. Type 'start' to begin.");
@@ -672,19 +693,19 @@ public class PeerNode {
     public void startVotingButtonClicked() {
         new Thread(() -> {
             // Update session status
-            SessionRegistry.updateSession(this.sessionCode, "started", null, null);
+            if (SessionRegistry.updateSession(this.sessionCode, "started", null, null)) {
+                // Leader-specific actions
+                if (leaderToken) {
+                    this.startVoting();
 
-            // Leader-specific actions
-            if (leaderToken) {
-                this.startVoting();
+                    // Broadcast voting start to all peers
+                    this.broadcastMessage("START_VOTING:" + sessionCode, null);
+                }
 
-                // Broadcast voting start to all peers
-                this.broadcastMessage("START_VOTING:" + sessionCode, null);
+                // Notify GUI to show voting options
+                String options = String.join(",", SessionRegistry.getVotingOptions(sessionCode));
+                sendToGUIMessageConsumer("SHOW_VOTING_OPTIONS:" + options);
             }
-
-            // Notify GUI to show voting options
-            String options = String.join(",", SessionRegistry.getVotingOptions(sessionCode));
-            sendToGUIMessageConsumer("SHOW_VOTING_OPTIONS:" + options);
         }).start();
     }
 

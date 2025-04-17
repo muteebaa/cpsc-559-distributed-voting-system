@@ -116,6 +116,7 @@ public class NodeCommunication {
      *
      * @param message       The message to broadcast.
      * @param peerAddresses The list of peer addresses.
+     * @return A collection of peers that failed to receive the message.
      */
     public Collection<String> broadcastMessage(String message, Collection<String> peerAddresses) {
         Collection<String> failedPeers = new ArrayList<>();
@@ -128,9 +129,7 @@ public class NodeCommunication {
             try (Socket socket = new Socket(host, port)) {
                 sendMessage(message, socket);
             } catch (IOException e) {
-                // remove this peer from the list
                 failedPeers.add(peer);
-                System.err.println("Failed to send message to " + peer);
             }
         }
         return failedPeers;
