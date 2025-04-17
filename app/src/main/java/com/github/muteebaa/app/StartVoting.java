@@ -267,6 +267,7 @@ private static JPanel createNewElectionPanel() {
                     System.out.println("Processing message: " + message); // Debug
                     
                     if (message.startsWith("SHOW_VOTING_OPTIONS:")) {
+                        buttonContainer.removeAll();
                         String optionsString = message.substring("SHOW_VOTING_OPTIONS:".length()).trim();
                         System.out.println("Showing options: " + optionsString); // Debug
                         
