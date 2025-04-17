@@ -299,7 +299,13 @@ public class PeerNode {
                 }
             }
         });
-        heartbeatMonitorThread.start();
+        try{
+                    heartbeatMonitorThread.start();
+
+        }
+        catch(Exception e){
+
+        }
     }
 
     public String getMyIp() {
@@ -597,6 +603,7 @@ public class PeerNode {
         if (this.leaderToken) {
             return;
         }
+        safeInterrupt(this.heartbeatMonitorThread);
         this.leaderToken = true;
         // set leader address to my address
         this.leaderAddress = getMyIp() + ":" + this.port;
@@ -605,7 +612,7 @@ public class PeerNode {
         System.out.println(leaderAddress);
 
         this.broadcastMessage("LEADER:" + this.nodeId, null);
-        safeInterrupt(this.heartbeatMonitorThread);
+        
 
         SessionRegistry.updateSession(this.sessionCode, null, leaderAddress.split(":")[0],
                 Integer.parseInt(leaderAddress.split(":")[1]));
@@ -649,7 +656,9 @@ public class PeerNode {
             // Wait for acknowledgment from the leader
             while (!acknowledgment) {
                 try {
+                    synchronized (this) {
                     wait();
+                }
                 } catch (InterruptedException e) {
                     // e.printStackTrace();
                     // initiate election
