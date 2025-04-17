@@ -3,7 +3,7 @@ package session
 import (
 	"encoding/json"
 	"errors"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"regexp"
 )
@@ -29,7 +29,7 @@ func genId() Id {
 	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	id := make([]byte, 6)
 	for i := range id {
-		id[i] = chars[rand.Intn(len(chars))]
+		id[i] = chars[rand.IntN(len(chars))]
 	}
 
 	return Id(id)
