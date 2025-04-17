@@ -3,7 +3,7 @@ package com.github.muteebaa.app;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import javax.swing.*;
-import java.awt.*;  // Add this line with your other imports
+import java.awt.*;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.URI;
@@ -37,10 +37,9 @@ public class SessionRegistry {
     private static HttpClient client = HttpClient.newHttpClient();
     private static final List<String> registryServers = List.of(
             // FIXME: Set actual ngrok addresses
+            "https://fbdf-2001-56a-7d22-3100-c6-699c-d069-7179.ngrok-free.app",
             "https://1116-2001-56a-7722-2000-35eb-7c06-620b-aafa.ngrok-free.app",
-            "https://1116-2001-56a-7722-2000-35eb-7c06-620b-aafa.ngrok-free.app",
-            "https://1116-2001-56a-7722-2000-35eb-7c06-620b-aafa.ngrok-free.app"
-            );
+            "https://1116-2001-56a-7722-2000-35eb-7c06-620b-aafa.ngrok-free.app");
 
     private static String currRegistry = registryServers.get(0);
 
@@ -123,7 +122,8 @@ public class SessionRegistry {
 
                 Gson gson = new Gson();
                 Collection<Session> sessions = gson.fromJson(resp.body(),
-                    new TypeToken<Collection<Session>>(){}.getType());
+                        new TypeToken<Collection<Session>>() {
+                        }.getType());
 
                 SwingUtilities.invokeLater(() -> {
                     sessionListPanel.removeAll();
@@ -165,7 +165,6 @@ public class SessionRegistry {
             }
         }.execute();
     }
-
 
     public static List<String> getVotingOptions(String sessionCode) {
         HttpRequest req = buildRegistryReq("/sessions/" + sessionCode).build();
@@ -340,7 +339,7 @@ public class SessionRegistry {
         Duration timeout = Duration.ofSeconds(5);
 
         return HttpRequest.newBuilder(uri)
-            .header("Content-Type", "application/json")
-            .timeout(timeout);
+                .header("Content-Type", "application/json")
+                .timeout(timeout);
     }
 }

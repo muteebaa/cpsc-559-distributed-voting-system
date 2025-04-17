@@ -5,7 +5,6 @@ import java.net.*;
 import java.util.*;
 import java.util.function.Consumer;
 
-
 //String filePath = System.getProperty("user.home")
 /**
  * Handles peer-to-peer communication between nodes.
@@ -17,6 +16,8 @@ public class NodeCommunication {
     private final Map<String, Integer> voteTally = new HashMap<>();
     private Consumer<String> messageHandler; // Callback function for message handling
 
+    private Thread handleIncomingMessageThread;
+
     /**
      * Starts a server to listen for incoming peer connections.
      *
@@ -25,13 +26,22 @@ public class NodeCommunication {
      */
     public void startServer(int port, Consumer<String> handler) {
         this.messageHandler = handler;
-        
+
         try {
             serverSocket = new ServerSocket(port);
-            // System.out.println("server started!");
             while (true) {
-                Socket socket = serverSocket.accept();
-                new Thread(() -> handleIncomingMessage(socket)).start(); // Run message handling on a new thread
+                try {
+                    Socket socket = serverSocket.accept();
+                    handleIncomingMessageThread = new Thread(() -> handleIncomingMessage(socket));
+                    handleIncomingMessageThread.start();
+                } catch (SocketException e) {
+                    if (serverSocket.isClosed()) {
+                        System.out.println("Server socket closed, exiting server thread gracefully.");
+                        break;
+                    } else {
+                        e.printStackTrace();
+                    }
+                }
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -117,8 +127,10 @@ public class NodeCommunication {
      *
      * @param message       The message to broadcast.
      * @param peerAddresses The list of peer addresses.
+     * @return A collection of peers that failed to receive the message.
      */
-    public void broadcastMessage(String message, Collection<String> peerAddresses) {
+    public Collection<String> broadcastMessage(String message, Collection<String> peerAddresses) {
+        Collection<String> failedPeers = new ArrayList<>();
         for (String peer : peerAddresses) {
             String[] parts = peer.split(":");
             String host = parts[0];
@@ -128,12 +140,11 @@ public class NodeCommunication {
             try (Socket socket = new Socket(host, port)) {
                 sendMessage(message, socket);
             } catch (IOException e) {
-                System.err.println("Failed to send message to " + peer);
+                failedPeers.add(peer);
             }
         }
+        return failedPeers;
     }
-
-    
 
     /**
      * Retrieves the current vote tally.
@@ -151,5 +162,22 @@ public class NodeCommunication {
      */
     public Socket getClientSocket() {
         return clientSocket;
+    }
+
+    /**
+     * Closes the server socket.
+     */
+    public void closeServer() {
+        try {
+            if (handleIncomingMessageThread != null && handleIncomingMessageThread.isAlive()) {
+                handleIncomingMessageThread.interrupt();
+            }
+
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                serverSocket.close();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
