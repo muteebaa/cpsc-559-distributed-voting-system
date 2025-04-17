@@ -65,6 +65,8 @@ public class PeerNode {
     private volatile boolean bullied = false;// wether or not this node has been bullied
     private String voteBuffer = null;
 
+    private statis final Object electionLock = new Object()
+
     private static final int TIMEOUT = 5000; // T time units in milliseconds
     private static final int WAIT_TIME = 3000; // T' time units
 
@@ -601,7 +603,7 @@ public class PeerNode {
         this.leaderAddress = getMyIp() + ":" + this.port;
 
         System.out.println(ANSI_CYAN + "Leader token set." + ANSI_RESET);
-        // System.out.println(leaderAddress);
+        System.out.println(leaderAddress);
 
         this.broadcastMessage("LEADER:" + this.nodeId, null);
 
@@ -638,8 +640,10 @@ public class PeerNode {
         this.voteBuffer = vote;
 
         this.acknowledgment = false;
+        System.out.println("Connecting to leader for vote");
+        System.out.println(leaderAddress);
         if (nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]))) {
-
+            System.out.println("Connected to leader for vote");
             nodeComm.sendMessage("VOTE:" + this.nodeId + ":" + vote + ":" + this.uuid, nodeComm.getClientSocket());
 
             // Wait for acknowledgment from the leader
@@ -779,6 +783,11 @@ public class PeerNode {
 
     // Initiate_Election(int i) /* process Pi */
     public void initiateElection() {
+        synchronized (this.electionLock)
+        {
+            if(this.hasLeaderToken){
+                return;
+            }
         System.out.println(ANSI_CYAN + "Initiating election..." + ANSI_RESET);
         // remove peer with leader address from peerNodes
         peerNodes.values().removeIf(value -> value.equals(leaderAddress));
@@ -862,7 +871,7 @@ public class PeerNode {
 
             this.running = false;
         }
-
+    }
     }
 
     /**
