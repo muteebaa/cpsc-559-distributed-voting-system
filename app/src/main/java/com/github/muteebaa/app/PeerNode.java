@@ -494,7 +494,7 @@ public class PeerNode {
         } else if (message.startsWith("DUPLICATE:")) {
             sendToGUI("Duplicate vote - your vote was not submitted");
         } else if (message.startsWith("UPDATE_VOTE_TALLY:")) {
-            String vote = message.substring(54).trim();
+            String vote = message.substring(55).trim();
             String uuid = message.substring(18, 54).trim();
             updateVoteTally(vote);
             updateUUID(uuid);
@@ -600,6 +600,8 @@ public class PeerNode {
 
         if (this.voteBuffer != null) {
             // send buffer to leader
+            System.out.println("printing buffer");
+            System.out.println(this.voteBuffer);
             sendVoteToLeader(voteBuffer);
             voteBuffer = null;
         }
@@ -642,6 +644,7 @@ public class PeerNode {
                 }
             }
             this.hasVoted = true;
+            this.voteBuffer = null;
         } else {
             // initiate election
             this.initiateElection();
@@ -724,7 +727,7 @@ public class PeerNode {
      */
     public void endVoting() {
         SessionRegistry.updateSession(this.sessionCode, "ended", null, null);
-        String results = "VOTING_ENDED:Voting has ended! Results: " + voteTally;
+        String results = "VOTING_ENDED:" + voteTally;
         System.out.println(ANSI_PURPLE + results.substring(13) + ANSI_RESET);
         sendToGUIMessageConsumer("FINAL_RESULT:" + voteTally);
         this.broadcastMessage(results, null);
