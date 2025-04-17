@@ -603,7 +603,7 @@ public class PeerNode {
     public void promptForVote() {
         // This will now be handled by the GUI
         if (guiMessageConsumer != null) {
-                sendToGUIMessageConsumer("SHOW_VOTING_OPTIONS:" + SessionRegistry.getVotingOptions(sessionCode).toString());
+                sendToGUIMessageConsumer("SHOW_VOTING_OPTIONS:" + String.join(",",SessionRegistry.getVotingOptions(sessionCode)));
             
         }
     }
@@ -655,9 +655,7 @@ public class PeerNode {
             }
     
             // Notify GUI to show voting options
-            String options = SessionRegistry.getVotingOptions(sessionCode).toString();
-            // Remove brackets and quotes for cleaner display
-            options = options.replaceAll("[\\[\\]\"]", "");
+            String options = String.join(",",SessionRegistry.getVotingOptions(sessionCode));
             sendToGUIMessageConsumer("SHOW_VOTING_OPTIONS:" + options);
         }).start();
     }
