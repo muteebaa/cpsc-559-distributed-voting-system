@@ -13,9 +13,11 @@ import (
 	"github.com/muteebaa/cpsc-559-distributed-voting-system/session"
 )
 
-var sessionStore session.SessionStorer = session.New()
+var sessionStore *session.SessionStore
 
-func Handler() http.Handler {
+func Handler(s *session.SessionStore) http.Handler {
+	sessionStore = s
+
 	r := chi.NewRouter()
 
 	r.Use(middleware.AllowContentType("application/json"))
@@ -159,7 +161,7 @@ func updateSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.Id = session.Id(chi.URLParam(r, "sess"))
-	err := sessionStore.Update(&s)
+	err := sessionStore.SelfUpdate(&s)
 	if err != nil {
 		switch {
 		case errors.Is(err, session.ErrUpdateNonExistent):
