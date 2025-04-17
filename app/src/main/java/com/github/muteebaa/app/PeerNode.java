@@ -98,7 +98,6 @@ public class PeerNode {
         if (!failedToSendTo.isEmpty()) {
             System.out.println(ANSI_RED + "Failed to send message to: " + failedToSendTo + ANSI_RESET);
             for (String peer : failedToSendTo) {
-                // Remove the failed peer from the list
                 this.peerNodes.values().removeIf(value -> value.equals(peer));
             }
             System.out.println(ANSI_RED + "Updated peer list after failure: " + this.peerNodes + ANSI_RESET);
@@ -379,31 +378,19 @@ public class PeerNode {
         if (message.startsWith("REGISTER:")) {
             String peer = message.substring(9);
             System.out.println(peer);
-            if (!peerNodes.values().contains(peer)) {
-                int highestCurrentId = peerNodes.keySet().stream()
-                        .mapToInt(Number::intValue)
-                        .max()
-                        .orElse(0);
+            int highestCurrentId = peerNodes.keySet().stream()
+                    .mapToInt(Number::intValue)
+                    .max()
+                    .orElse(0);
 
-                int newId = highestCurrentId + 1;
+            int newId = highestCurrentId + 1;
 
-                peerNodes.put(newId, peer);
+            peerNodes.put(newId, peer);
+            this.broadcastPeerList();
 
-                // String peerList = peerNodes.entrySet().stream()
-                // .map(entry -> entry.getKey() + "," + entry.getValue())
-                // .collect(Collectors.joining("-"));
-                // this.broadcastMessage("UPDATE_NEW_PEER:" + newId + "," + peer + "-" +
-                // peerList, null);
-                this.broadcastPeerList();
-
-                sendToGUI("New peer registered. Peer list: " + peerNodes);
-                nodeComm.connectToNode(peer.split(":")[0], Integer.parseInt(peer.split(":")[1]));
-                nodeComm.sendMessage("ACK: You are successfully registered.", nodeComm.getClientSocket());
-            } else {
-                sendToGUI(peer + " is back!");
-                nodeComm.connectToNode(peer.split(":")[0], Integer.parseInt(peer.split(":")[1]));
-                nodeComm.sendMessage("ACK: Welcome back!", nodeComm.getClientSocket());
-            }
+            sendToGUI("New peer registered. Peer list: " + peerNodes);
+            nodeComm.connectToNode(peer.split(":")[0], Integer.parseInt(peer.split(":")[1]));
+            nodeComm.sendMessage("ACK: You are successfully registered.", nodeComm.getClientSocket());
 
         } else if (message.equals("HEARTBEAT")) {
             sendToGUI("Heartbeat received from leader");
