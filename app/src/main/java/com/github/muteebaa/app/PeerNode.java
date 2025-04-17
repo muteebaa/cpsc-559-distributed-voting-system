@@ -49,6 +49,7 @@ public class PeerNode {
     private String leaderAddress;
     private String sessionCode;
     private boolean acknowledgment = false;
+    private boolean hasVoted = false;
     private String uuid;
     private ConcurrentSkipListSet<String> uuidSet;
 
@@ -84,6 +85,10 @@ public class PeerNode {
         }
 
         this.uuidSet = new ConcurrentSkipListSet<>();
+    }
+
+    public boolean getHasVoted(){
+        return this.hasVoted;
     }
 
     /**
@@ -534,10 +539,6 @@ public class PeerNode {
 
         SessionRegistry.updateSession(this.sessionCode, null, leaderAddress.split(":")[0],
                 Integer.parseInt(leaderAddress.split(":")[1]));
-
-        if (SessionRegistry.getSessionStatus(this.sessionCode).equals("waiting")) {
-            this.waitForStartVoting();
-        }
     }
 
     /**
@@ -560,7 +561,6 @@ public class PeerNode {
         
         sendToGUIMessageConsumer("HIDE_VOTING_OPTIONS");
         this.acknowledgment = false;
-
         if (nodeComm.connectToNode(leaderAddress.split(":")[0], Integer.parseInt(leaderAddress.split(":")[1]))) {
 
             nodeComm.sendMessage("VOTE:" + this.nodeId + ":" + vote + ":" + this.uuid, nodeComm.getClientSocket());
@@ -579,6 +579,7 @@ public class PeerNode {
                     this.initiateElection();
                 }
             }
+            this.hasVoted = true;
         } else {
             // add vote to buffer
             voteBuffer = vote;
@@ -730,6 +731,8 @@ public class PeerNode {
             // send leader(i) to all Pj, where j ≠ i else
             System.out.println(ANSI_CYAN + "Sending leader message to all peers: " + peerNodes.values() + ANSI_RESET);
             takeLeaderToken();
+            sendToGUIMessageConsumer("LEADER_CHANGE");
+            sendToGUI("Leader Change");
 
         } else {
             // get list of ids bigger than mine

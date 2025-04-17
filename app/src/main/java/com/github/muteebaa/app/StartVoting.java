@@ -300,28 +300,30 @@ private static JPanel createNewElectionPanel() {
                         
                             // Remove existing buttons
                             buttonContainer.removeAll();
+
+                            if(currentPeer.hasLeaderToken()){
+                                // Add End Election button
+                                JButton endElectionBtn = new JButton("End Election");
+                                styleButton(endElectionBtn, new Color(231, 76, 60), Color.WHITE); // Red color
+                                endElectionBtn.addActionListener(ev -> {
+                                    currentPeer.endVoting();
+                                    endElectionBtn.setEnabled(false);
+                                });
+                                buttonContainer.add(endElectionBtn);
             
-                            // Add End Election button
-                            JButton endElectionBtn = new JButton("End Election");
-                            styleButton(endElectionBtn, new Color(231, 76, 60), Color.WHITE); // Red color
-                            endElectionBtn.addActionListener(ev -> {
-                                currentPeer.endVoting();
-                                endElectionBtn.setEnabled(false);
-                            });
-                            buttonContainer.add(endElectionBtn);
+                                buttonContainer.revalidate();
+                                buttonContainer.repaint();
             
-                            buttonContainer.revalidate();
-                            buttonContainer.repaint();
+                                // Hide voting options
+                                optionsPanel.setVisible(false);
+                                optionsPanel.removeAll();
+                                optionsPanel.revalidate();
+                                optionsPanel.repaint();
             
-                            // Hide voting options
-                            optionsPanel.setVisible(false);
-                            optionsPanel.removeAll();
-                            optionsPanel.revalidate();
-                            optionsPanel.repaint();
-            
-                            // Add to activity log
-                            String timestamp2 = new SimpleDateFormat("HH:mm:ss").format(new Date());
-                            messageListModel.addElement("[" + timestamp2 + "] All votes counted - ready to end election");
+                                // Add to activity log
+                                String timestamp2 = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                                messageListModel.addElement("[" + timestamp2 + "] All votes counted - ready to end election");
+                            }
                     }
                         else {
                             // Regular status message
@@ -449,18 +451,13 @@ private static void styleButton(JButton button, Color bgColor, Color textColor) 
             String sessionDetails = sessions.get(sessionCode);
             String[] parts = sessionDetails.split(",");
             String leaderAddress = parts[0];
-            String sessionStatus = parts.length > 1 ? parts[1] : "unknown";
-
+            String sessionStatus = parts.length > 1 ? parts[parts.length-1] : "unknown";
+            System.out.println(sessionDetails);
+            System.out.println(sessionStatus);
             if ("ended".equals(sessionStatus)) {
                 JOptionPane.showMessageDialog(mainFrame, 
                     "Sorry, this session has already ended!", 
                     "Session Ended", 
-                    JOptionPane.ERROR_MESSAGE);
-                return;
-            } else if ("started".equals(sessionStatus)) {
-                JOptionPane.showMessageDialog(mainFrame, 
-                    "Sorry, this session is already in progress!", 
-                    "Session In Progress", 
                     JOptionPane.ERROR_MESSAGE);
                 return;
             }
@@ -539,59 +536,162 @@ private static void styleButton(JButton button, Color bgColor, Color textColor) 
                 });
 
                 currentPeer.setGuiMessageConsumer(message -> {
-                    SwingUtilities.invokeLater(() -> {
-                        if (message.startsWith("SHOW_VOTING_OPTIONS:")) {
-                            String optionsString = message.substring("SHOW_VOTING_OPTIONS:".length()).trim();
-                            
-                            // Clear and show options panel
-                            optionsPanel.removeAll();
-                            optionsPanel.setVisible(true);
-                            
-                            // Add title
-                            JLabel voteTitle = new JLabel("Vote Now:", SwingConstants.CENTER);
-                            voteTitle.setFont(new Font("Arial", Font.BOLD, 14));
-                            optionsPanel.add(voteTitle);
-                            
-                            // Add voting buttons
-                            for (String option : optionsString.split(",")) {
-                                option = option.trim();
-                                JButton voteButton = new JButton(option);
-                                voteButton.setPreferredSize(new Dimension(150, 40));
+                SwingUtilities.invokeLater(() -> {
+                    System.out.println("Processing message: " + message); // Debug
+                    
+                    if (message.startsWith("SHOW_VOTING_OPTIONS:")) {
+                        buttonContainer.removeAll();
+                        String optionsString = message.substring("SHOW_VOTING_OPTIONS:".length()).trim();
+                        System.out.println("Showing options: " + optionsString); // Debug
+                        
+                        // Clear existing components
+                        optionsPanel.removeAll();
+                        optionsPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 10, 10));
+                        
+                        // Add title
+                        JLabel title = new JLabel("Vote Now:", SwingConstants.CENTER);
+                        title.setFont(new Font("Arial", Font.BOLD, 16));
+                        optionsPanel.add(title);
+                        
+                        // Add voting buttons
+                        for (String option : optionsString.split(",")) {
+                            option = option.trim();
+                            if (!option.isEmpty()) {
+                                JButton btn = new JButton(option);
+                                btn.setPreferredSize(new Dimension(150, 40));
                                 
                                 final String finalOption = option;
-                                voteButton.addActionListener(ev -> {
+                                btn.addActionListener(ev -> {
                                     currentPeer.sendVoteToLeader(finalOption);
                                     JOptionPane.showMessageDialog(mainFrame,
-                                        "Vote submitted for: " + finalOption,
-                                        "Vote Received",
+                                        "Voted for: " + finalOption,
+                                        "Vote Submitted",
                                         JOptionPane.INFORMATION_MESSAGE);
                                 });
-                                optionsPanel.add(voteButton);
+                                optionsPanel.add(btn);
                             }
-                            
-                            optionsPanel.revalidate();
-                            optionsPanel.repaint();
-                            
-                            // Add to activity log
-                            String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
-                            messageListModel.addElement("[" + timestamp + "] Voting has started!");
                         }
-                        else if (message.equals("HIDE_VOTING_OPTIONS")) {
+                        
+                        // Force UI update
+                        optionsPanel.setVisible(true);
+                        optionsPanel.revalidate();
+                        optionsPanel.repaint();
+                        
+                        // Debug print component hierarchy
+                        System.out.println("Options panel visible: " + optionsPanel.isVisible());
+                        System.out.println("Options panel parent: " + optionsPanel.getParent());
+                        
+                        // Add to activity log
+                        String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                        messageListModel.addElement("[" + timestamp + "] Voting has started! Options: " + optionsString);
+                    }
+                    else if (message.equals("LEADER_CHANGE")) {
+                            System.out.println("LEADER CHANGE MESSAGE RECEIVED");
+                            String currentStatus = SessionRegistry.getSessionStatus(sessionCode);
+                            System.out.println("Current status: " + currentStatus);
+    
+
+    
+                            if(currentPeer.hasLeaderToken()) {
+                                if("waiting".equals(currentStatus)) {
+                                                                // Clear existing buttons first
+                                    buttonContainer.removeAll();
+                                    // Add Start Election button for new leader
+                                    JButton startElectionBtn = new JButton("Start Election");
+                                    styleButton(startElectionBtn, new Color(46, 204, 113), Color.WHITE); // Green color
+                                    startElectionBtn.addActionListener(ev -> {
+                                        currentPeer.startVotingButtonClicked();
+                                        startElectionBtn.setEnabled(false);
+                                    });
+                                    buttonContainer.add(startElectionBtn);
+            
+                                    // Add to activity log
+                                    String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                                    messageListModel.addElement("[" + timestamp + "] You are now the leader - ready to start election");
+                                    // Update UI
+                                    buttonContainer.revalidate();
+                                    buttonContainer.repaint();
+        
+                                    // Clear voting options if any
+                                    optionsPanel.setVisible(false);
+                                    optionsPanel.removeAll();
+                                    optionsPanel.revalidate();
+                                    optionsPanel.repaint();
+                                } 
+                                else if("started".equals(currentStatus) && currentPeer.getHasVoted()) {
+                                    // Add End Election button for new leader
+                                                                // Clear existing buttons first
+                                    buttonContainer.removeAll();
+                                    JButton endElectionBtn = new JButton("End Election");
+                                    styleButton(endElectionBtn, new Color(231, 76, 60), Color.WHITE); // Red color
+                                    endElectionBtn.addActionListener(ev -> {
+                                        currentPeer.endVoting();
+                                        endElectionBtn.setEnabled(false);
+                                    });
+                                    buttonContainer.add(endElectionBtn);
+            
+                                    // Add to activity log
+                                    String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                                    messageListModel.addElement("[" + timestamp + "] You are now the leader - ready to end election");
+
+                                    // Update UI
+                                    buttonContainer.revalidate();
+                                    buttonContainer.repaint();
+        
+                                    // Clear voting options if any
+                                    optionsPanel.setVisible(false);
+                                    optionsPanel.removeAll();
+                                    optionsPanel.revalidate();
+                                    optionsPanel.repaint();
+                                }
+        
+                                
+                            }
+                        }
+                    else if (message.equals("HIDE_VOTING_OPTIONS")) {
                             optionsPanel.setVisible(false);
                             optionsPanel.removeAll();
                             optionsPanel.revalidate();
-                            optionsPanel.repaint();
-            
-                            // Add to activity log
+                            optionsPanel.repaint();          
+
                             String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
-                            messageListModel.addElement("[" + timestamp + "] Voting completed - waiting for results");
-                        }else {
+                        
+                            // Remove existing buttons
+                            buttonContainer.removeAll();
+
+                            if(currentPeer.hasLeaderToken()){
+                                // Add End Election button
+                                JButton endElectionBtn = new JButton("End Election");
+                                styleButton(endElectionBtn, new Color(231, 76, 60), Color.WHITE); // Red color
+                                endElectionBtn.addActionListener(ev -> {
+                                    currentPeer.endVoting();
+                                    endElectionBtn.setEnabled(false);
+                                });
+                                buttonContainer.add(endElectionBtn);
+            
+                                buttonContainer.revalidate();
+                                buttonContainer.repaint();
+            
+                                // Hide voting options
+                                optionsPanel.setVisible(false);
+                                optionsPanel.removeAll();
+                                optionsPanel.revalidate();
+                                optionsPanel.repaint();
+            
+                                // Add to activity log
+                                String timestamp2 = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                                messageListModel.addElement("[" + timestamp2 + "] All votes counted - ready to end election");
+                            }
+            
+                            
+                    }
+                        else {
                             // Regular status message
                             String timestamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
                             messageListModel.addElement("[" + timestamp + "] " + message);
                         }
-                    });
                 });
+            });
 
                 currentPeer.setHeartbeatStatusConsumer(message -> {
                     SwingUtilities.invokeLater(() -> {
@@ -608,6 +708,10 @@ private static void styleButton(JButton button, Color bgColor, Color textColor) 
                 beatHandle = scheduler.scheduleAtFixedRate(heartbeat, 10, 10, TimeUnit.SECONDS);
 
                 cardLayout.show(cardPanel, "WAITING");
+
+                if ("started".equals(sessionStatus)) {
+                    currentPeer.promptForVote();
+            }
             
             } catch (NumberFormatException ex) {
                 JOptionPane.showMessageDialog(mainFrame, 
