@@ -9,13 +9,10 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.nio.file.FileSystemException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
-import java.util.List;
 import javax.swing.*;
-import java.awt.*;
 import java.util.stream.Collectors;
 import java.util.concurrent.ConcurrentSkipListSet;
 
@@ -43,10 +40,8 @@ public class PeerNode {
 
     private Consumer<String> heartbeatStatusConsumer;
     private Consumer<String> statusMessageConsumer;
-
     private Consumer<String> guiMessageConsumer;
 
-    private static final Scanner scanner = new Scanner(System.in);
     private final NodeCommunication nodeComm;
     private final int port;
     private int nodeId; // will be used in leader election
@@ -95,10 +90,22 @@ public class PeerNode {
         this.uuidSet = new ConcurrentSkipListSet<>();
     }
 
+    /**
+     * Returns wether or not the user has voted.
+     * 
+     * @return True if the user has voted, false otherwise.
+     */
     public boolean getHasVoted() {
         return this.hasVoted;
     }
 
+    /**
+     * Broadcasts a message to all peer nodes.
+     * 
+     * @param message   The message to be sent.
+     * @param peerNodes The collection of peer nodes to send the message to. If
+     *                  null, sends to all peer nodes.
+     */
     private void broadcastMessage(String message, Collection<String> peerNodes) {
         Collection<String> broadcastTo = peerNodes != null ? peerNodes : this.peerNodes.values();
         Collection<String> failedToSendTo = nodeComm.broadcastMessage(message, broadcastTo);
@@ -117,8 +124,7 @@ public class PeerNode {
     /**
      * This gets the System/Motherboard UUID which is unique to the motherboard.
      * This effectively means 1 machine one vote for our system.
-     * This should be valid for both Linux and Windows machines. MAC is not
-     * supported.
+     * This should be valid for both Linux and Windows machines.
      * 
      * @return System UUID/Motherboard UUID
      */
@@ -234,6 +240,11 @@ public class PeerNode {
         }
     }
 
+    /**
+     * Sets the session code for the peer.
+     * 
+     * @param sessionCode
+     */
     public void setSessionCode(String sessionCode) {
         this.sessionCode = sessionCode;
     }
@@ -246,16 +257,29 @@ public class PeerNode {
         serverThread.start();
     }
 
+    /**
+     * Sets the consumer for heartbeat status updates.
+     * 
+     * @param consumer
+     */
     public void setHeartbeatStatusConsumer(Consumer<String> consumer) {
         this.heartbeatStatusConsumer = consumer;
     }
 
+    /**
+     * Notifies the GUI about heartbeat status.
+     * 
+     * @param message
+     */
     private void notifyHeartbeat(String message) {
         if (heartbeatStatusConsumer != null) {
             SwingUtilities.invokeLater(() -> heartbeatStatusConsumer.accept(message));
         }
     }
 
+    /**
+     * Starts a heartbeat thread to send periodic heartbeat messages.
+     */
     private void startHeartbeat() {
         heartbeatThread = new Thread(() -> {
             while (!Thread.currentThread().isInterrupted()) {
@@ -277,6 +301,9 @@ public class PeerNode {
         heartbeatThread.start();
     }
 
+    /**
+     * Starts a heartbeat monitor thread to check for missed heartbeats.
+     */
     private void startHeartbeatMonitor() {
         heartbeatMonitorThread = new Thread(() -> {
             while (!Thread.currentThread().isInterrupted()) { // Check for interruption here
@@ -299,15 +326,19 @@ public class PeerNode {
                 }
             }
         });
-        try{
-                    heartbeatMonitorThread.start();
+        try {
+            heartbeatMonitorThread.start();
 
-        }
-        catch(Exception e){
+        } catch (Exception e) {
 
         }
     }
 
+    /**
+     * Gets the local IP address of the peer.
+     * 
+     * @return The local IP address as a string.
+     */
     public String getMyIp() {
         try {
             String myIp = InetAddress.getLocalHost().getHostAddress();
@@ -366,25 +397,35 @@ public class PeerNode {
      *
      * @param message The received message.
      */
-    // Add this field to PeerNode class
-    // Add this setter method
     public void setStatusMessageConsumer(Consumer<String> consumer) {
         this.statusMessageConsumer = consumer;
     }
 
-    // Helper method to send messages to GUI
+    /**
+     * Notifies the GUI about status messages.
+     * 
+     * @param message
+     */
     private void sendToGUIMessageConsumer(String message) {
         if (guiMessageConsumer != null) {
             SwingUtilities.invokeLater(() -> guiMessageConsumer.accept(message));
         }
     }
 
+    /**
+     * Notifies the GUI about status messages.
+     * 
+     * @param message
+     */
     private void sendToGUI(String message) {
         if (statusMessageConsumer != null) {
             SwingUtilities.invokeLater(() -> statusMessageConsumer.accept(message));
         }
     }
 
+    /**
+     * Broadcasts the updated peer list to all peers.
+     */
     private void broadcastPeerList() {
         String peerList = peerNodes.entrySet().stream()
                 .map(entry -> entry.getKey() + "," + entry.getValue())
@@ -394,7 +435,11 @@ public class PeerNode {
         sendToGUI("Updated peer list: " + peerNodes);
     }
 
-    // Modified handleMessage method
+    /**
+     * Handles incoming messages from peers.
+     * 
+     * @param message The received message.
+     */
     public void handleMessage(String message) {
         if (message.startsWith("REGISTER:")) {
             String peer = message.substring(9);
@@ -554,13 +599,19 @@ public class PeerNode {
         }
     }
 
+    /**
+     * Updates the UUID set with a new UUID.
+     * 
+     * @param uuid The UUID to be added.
+     * @return True if the UUID was added successfully, false if it was already
+     */
     public boolean updateUUID(String uuid) {
         boolean succcess = uuidSet.add(uuid);
         return succcess;
     }
 
     /**
-     * Determines the leader node. (Currently hardcoded)
+     * Sets the leader address and updates the peer nodes list.
      */
     public void setLeaderAddress(String leaderAddress) {
         // remove peer with previous leader address from peerNodes
@@ -576,28 +627,35 @@ public class PeerNode {
         }
     }
 
+    /**
+     * Gets the leader address.
+     * 
+     * @return The leader address.
+     */
     public String getLeaderAddress() {
         return leaderAddress;
     }
 
+    /**
+     * Checks if the peer has the leader token.
+     * 
+     * @return True if the peer has the leader token, false otherwise.
+     */
     public boolean hasLeaderToken() {
         return leaderToken;
     }
 
     /**
-     * for the first time
+     * Sets the leader token for this peer.
      */
     public void setLeaderToken() {
         this.leaderToken = true;
         // set leader address to my address
         this.leaderAddress = getMyIp() + ":" + this.port;
-
-        // System.out.println("Leader token set.");
-        // System.out.println(leaderAddress);
     }
 
     /**
-     * when a new leader is elected use this
+     * Takes the leader token and updates the session registry.
      */
     public void takeLeaderToken() {
         if (this.leaderToken) {
@@ -612,7 +670,6 @@ public class PeerNode {
         System.out.println(leaderAddress);
 
         this.broadcastMessage("LEADER:" + this.nodeId, null);
-        
 
         SessionRegistry.updateSession(this.sessionCode, null, leaderAddress.split(":")[0],
                 Integer.parseInt(leaderAddress.split(":")[1]));
@@ -657,8 +714,8 @@ public class PeerNode {
             while (!acknowledgment) {
                 try {
                     synchronized (this) {
-                    wait();
-                }
+                        wait();
+                    }
                 } catch (InterruptedException e) {
                     // e.printStackTrace();
                     // initiate election
@@ -674,7 +731,7 @@ public class PeerNode {
     }
 
     /**
-     * Prompts the user for a vote.
+     * Starts the voting process and broadcasts the voting options to all peers.
      */
     public void startVoting() {
         // System.out.println("starting voting");
@@ -683,6 +740,9 @@ public class PeerNode {
 
     }
 
+    /**
+     * Prompts the GUI for voting options.
+     */
     public void promptForVote() {
         // This will now be handled by the GUI
         if (guiMessageConsumer != null) {
@@ -692,41 +752,19 @@ public class PeerNode {
         }
     }
 
+    /**
+     * Sets the consumer for GUI messages.
+     * 
+     * @param consumer
+     */
     public void setGuiMessageConsumer(Consumer<String> consumer) {
         this.guiMessageConsumer = consumer;
         System.out.print("sending to the frontend the voting options");
     }
 
-    private void sendToGui(String message) {
-        System.out.print(message);
-        if (guiMessageConsumer != null) {
-            SwingUtilities.invokeLater(() -> guiMessageConsumer.accept(message));
-        }
-    }
-
-    // public void waitForStartVoting() {
-
-    // SwingUtilities.invokeLater(() -> {
-    // String input = JOptionPane.showInputDialog(
-    // null,
-    // "Type 'start' to begin voting:",
-    // "Start Voting",
-    // JOptionPane.PLAIN_MESSAGE);
-
-    // if (input != null && input.trim().equalsIgnoreCase("start")) {
-    // = new Thread(() -> {
-    // if (SessionRegistry.updateSession(this.sessionCode, "started", null, null)) {
-    // this.startVoting();
-    // this.promptForVote();
-    // }
-    // });
-    // startVotingThread.start();
-    // } else {
-    // sendToGui("Invalid input. Type 'start' to begin.");
-    // }
-    // });
-    // }
-
+    /**
+     * Handles the button click event for starting the voting process.
+     */
     public void startVotingButtonClicked() {
         // Update session status
         if (SessionRegistry.updateSession(this.sessionCode, "started", null, null)) {
@@ -790,97 +828,101 @@ public class PeerNode {
         }
     }
 
-    // Initiate_Election(int i) /* process Pi */
+    /**
+     * Initiates the leader election process.
+     */
     public void initiateElection() {
-        synchronized (this.electionLock)
-        {
-            if(this.hasLeaderToken()){
+        // Initiate_Election(int i) /* process Pi */
+        synchronized (this.electionLock) {
+            if (this.hasLeaderToken()) {
                 return;
             }
-        System.out.println(ANSI_CYAN + "Initiating election..." + ANSI_RESET);
-        // remove peer with leader address from peerNodes
-        peerNodes.values().removeIf(value -> value.equals(leaderAddress));
-        this.leaderAddress = null;
+            System.out.println(ANSI_CYAN + "Initiating election..." + ANSI_RESET);
+            // remove peer with leader address from peerNodes
+            peerNodes.values().removeIf(value -> value.equals(leaderAddress));
+            this.leaderAddress = null;
 
-        // runningi = true /* I am running in this elections */
-        this.running = true;
+            // runningi = true /* I am running in this elections */
+            this.running = true;
 
-        System.out.println(ANSI_CYAN + "Peer nodes: " + peerNodes + ANSI_RESET);
+            System.out.println(ANSI_CYAN + "Peer nodes: " + peerNodes + ANSI_RESET);
 
-        int highestCurrentId = peerNodes.keySet().stream()
-                .mapToInt(Number::intValue) // Convert Number to int
-                .max() // Get the maximum value
-                .orElse(0); // Default value if the map is empty
+            int highestCurrentId = peerNodes.keySet().stream()
+                    .mapToInt(Number::intValue) // Convert Number to int
+                    .max() // Get the maximum value
+                    .orElse(0); // Default value if the map is empty
 
-        System.out.println(ANSI_CYAN + "Highest current id: " + highestCurrentId + ANSI_RESET);
+            System.out.println(ANSI_CYAN + "Highest current id: " + highestCurrentId + ANSI_RESET);
 
-        // if i is the highest id
-        if (this.nodeId == highestCurrentId) {
-            System.out.println(
-                    ANSI_CYAN + "Node " + nodeId + " is the highest id. Declaring myself as leader." + ANSI_RESET);
-            // then
-            // send leader(i) to all Pj, where j ≠ i else
-            System.out.println(ANSI_CYAN + "Sending leader message to all peers: " + peerNodes.values() + ANSI_RESET);
-            takeLeaderToken();
-            sendToGUIMessageConsumer("LEADER_CHANGE");
-            sendToGUI("Leader Change");
+            // if i is the highest id
+            if (this.nodeId == highestCurrentId) {
+                System.out.println(
+                        ANSI_CYAN + "Node " + nodeId + " is the highest id. Declaring myself as leader." + ANSI_RESET);
+                // then
+                // send leader(i) to all Pj, where j ≠ i else
+                System.out
+                        .println(ANSI_CYAN + "Sending leader message to all peers: " + peerNodes.values() + ANSI_RESET);
+                takeLeaderToken();
+                sendToGUIMessageConsumer("LEADER_CHANGE");
+                sendToGUI("Leader Change");
 
-        } else {
-            // get list of ids bigger than mine
-            Map<Number, String> biggerIds = peerNodes.entrySet().stream()
-                    .filter(entry -> entry.getKey().intValue() > this.nodeId) // Filter keys > my ID
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)); // Collect as Map
+            } else {
+                // get list of ids bigger than mine
+                Map<Number, String> biggerIds = peerNodes.entrySet().stream()
+                        .filter(entry -> entry.getKey().intValue() > this.nodeId) // Filter keys > my ID
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)); // Collect as Map
 
-            System.out.println(ANSI_CYAN + "Bigger ids: " + biggerIds + ANSI_RESET);
-            // send election(i) to all Pj, where j > i
-            this.broadcastMessage("ELECTION:" + this.nodeId, biggerIds.values());
+                System.out.println(ANSI_CYAN + "Bigger ids: " + biggerIds + ANSI_RESET);
+                // send election(i) to all Pj, where j > i
+                this.broadcastMessage("ELECTION:" + this.nodeId, biggerIds.values());
 
-            // /* check if there are bigger guys out there */
-            // wait for T time units
-            synchronized (this) {
-                while (!this.bullied) {
-                    try {
-                        wait(TIMEOUT);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
+                // /* check if there are bigger guys out there */
+                // wait for T time units
+                synchronized (this) {
+                    while (!this.bullied) {
+                        try {
+                            wait(TIMEOUT);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+
+                    // final check to prevent race condition
+                    if (this.bullied) {
+                        System.out
+                                .println(ANSI_CYAN + "Node " + nodeId + " was bullied. Not declaring myself as leader."
+                                        + ANSI_RESET);
+                        // Reset bullied flag
+                        this.bullied = false;
+                        return; // Exit the election process
+                    }
+
+                    // No response → Declare self as leader
+                    if (this.running && !hasLeaderToken()) {
+                        System.out.println(ANSI_CYAN + "Node " + nodeId
+                                + " received no response. Declaring myself as leader." + ANSI_RESET);
+                        takeLeaderToken();
+                        // nodeComm.broadcastMessage("LEADER:" + getMyIp() + "," + this.port,
+                        // peerNodes.values());
                     }
                 }
 
-                // final check to prevent race condition
-                if (this.bullied) {
-                    System.out.println(ANSI_CYAN + "Node " + nodeId + " was bullied. Not declaring myself as leader."
-                            + ANSI_RESET);
-                    // Reset bullied flag
-                    this.bullied = false;
-                    return; // Exit the election process
+                // else /* bully is received */
+                while (this.leaderAddress == null) {
+
+                    //// wait for T’ time units
+                    try {
+                        Thread.sleep(WAIT_TIME);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    //// if no leader(k) message Initiate_Election(i)
+                    initiateElection();
                 }
 
-                // No response → Declare self as leader
-                if (this.running && !hasLeaderToken()) {
-                    System.out.println(ANSI_CYAN + "Node " + nodeId
-                            + " received no response. Declaring myself as leader." + ANSI_RESET);
-                    takeLeaderToken();
-                    // nodeComm.broadcastMessage("LEADER:" + getMyIp() + "," + this.port,
-                    // peerNodes.values());
-                }
+                this.running = false;
             }
-
-            // else /* bully is received */
-            while (this.leaderAddress == null) {
-
-                //// wait for T’ time units
-                try {
-                    Thread.sleep(WAIT_TIME);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-                //// if no leader(k) message Initiate_Election(i)
-                initiateElection();
-            }
-
-            this.running = false;
         }
-    }
     }
 
     /**
