@@ -5,7 +5,6 @@ import java.net.*;
 import java.util.*;
 import java.util.function.Consumer;
 
-//String filePath = System.getProperty("user.home")
 /**
  * Handles peer-to-peer communication between nodes.
  * Supports message sending, receiving, peer tracking, and voting tallying.
