@@ -4,8 +4,6 @@ import javax.swing.*;
 import javax.swing.table.JTableHeader;
 
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.ArrayList;
@@ -15,8 +13,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
+/**
+ * StartVoting is the main class for the voting system application.
+ */
 public class StartVoting {
     private static ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private static ScheduledFuture<?> beatHandle;
@@ -24,7 +24,6 @@ public class StartVoting {
     private static JFrame mainFrame;
     private static CardLayout cardLayout;
     private static JPanel cardPanel;
-    private static JTextArea sessionsTextArea;
     private static JTextArea statusTextArea;
     private static JPanel buttonPanel; // Added for waiting panel button access
     private static JPanel sessionListPanel; // To update later in displayAvailableSessions()
@@ -35,6 +34,9 @@ public class StartVoting {
         });
     }
 
+    /**
+     * Creates and shows the main GUI for the voting system.
+     */
     private static void createAndShowGUI() {
         mainFrame = new JFrame("Voting System");
         mainFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -58,6 +60,12 @@ public class StartVoting {
         mainFrame.setVisible(true);
     }
 
+    /**
+     * Creates the main menu panel with options to start a new election, join an
+     * existing election, or view all sessions.
+     * 
+     * @return JPanel The main menu panel.
+     */
     private static JPanel createMainMenuPanel() {
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
@@ -88,7 +96,7 @@ public class StartVoting {
         joinElectionBtn.addActionListener(e -> showJoinElectionPanel());
         viewSessionsBtn.addActionListener(e -> {
             cardLayout.show(cardPanel, "SESSIONS");
-            SessionRegistry.displayAvailableSessions(sessionListPanel); // <-- this is the fix
+            SessionRegistry.displayAvailableSessions(sessionListPanel);
         });
 
         optionsPanel.add(newElectionBtn);
@@ -106,8 +114,11 @@ public class StartVoting {
         return panel;
     }
 
-    // ... [Previous imports and class declaration remain the same]
-
+    /**
+     * Creates the sessions panel to display all available sessions.
+     * 
+     * @return JPanel The sessions panel.
+     */
     private static JPanel createNewElectionPanel() {
         // Create main panel with border layout
         JPanel panel = new JPanel(new BorderLayout(20, 20));
@@ -475,6 +486,12 @@ public class StartVoting {
         return panel;
     }
 
+    /**
+     * Gets the latest leader address for a given session code.
+     * 
+     * @param sessionCode
+     * @return
+     */
     private static String getLatestLeaderAddress(String sessionCode) {
         Map<String, String> sessions = SessionRegistry.loadSessions();
         String sessionDetails = sessions.get(sessionCode);
@@ -485,7 +502,13 @@ public class StartVoting {
         return parts[0]; // leaderAddress
     }
 
-    // Helper method to style buttons
+    /**
+     * Helper method to style buttons
+     * 
+     * @param button
+     * @param bgColor
+     * @param textColor
+     */
     private static void styleButton(JButton button, Color bgColor, Color textColor) {
         button.setBackground(bgColor);
         button.setForeground(textColor);
@@ -497,6 +520,9 @@ public class StartVoting {
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
     }
 
+    /**
+     * Creates the panel to join an existing election.
+     */
     private static void showJoinElectionPanel() {
         // Create main panel with border layout
         JPanel panel = new JPanel(new BorderLayout(20, 20));
@@ -961,6 +987,11 @@ public class StartVoting {
         cardLayout.show(cardPanel, "JOIN_ELECTION");
     }
 
+    /**
+     * Creates the sessions panel to display all available sessions.
+     * 
+     * @return JPanel The sessions panel.
+     */
     private static JPanel createSessionsPanel() {
         JPanel panel = new JPanel(new BorderLayout());
 
@@ -987,6 +1018,11 @@ public class StartVoting {
         return panel;
     }
 
+    /**
+     * Creates the waiting panel that shows status messages and buttons.
+     * 
+     * @return JPanel The waiting panel.
+     */
     private static JPanel createWaitingPanel() {
         JPanel panel = new JPanel(new BorderLayout());
 
@@ -1020,6 +1056,10 @@ public class StartVoting {
         return panel;
     }
 
+    /**
+     * Resets the state of the application, including stopping the heartbeat and
+     * shutting down the current peer.
+     */
     private static void resetState() {
         System.out.println("Resetting state...");
         if (beatHandle != null) {
@@ -1037,6 +1077,9 @@ public class StartVoting {
 
     }
 
+    /**
+     * Custom renderer for the status messages list.
+     */
     private static class StatusMessageRenderer extends DefaultListCellRenderer {
         @Override
         public Component getListCellRendererComponent(JList<?> list, Object value, int index,
@@ -1048,7 +1091,7 @@ public class StartVoting {
 
             if (message.contains("[HEARTBEAT]")) {
                 setForeground(new Color(52, 152, 219));
-                setIcon(new ImageIcon("heartbeat_icon.png")); // You'd add your own icon
+                setIcon(new ImageIcon("heartbeat_icon.png"));
             } else if (message.contains("[VOTE]")) {
                 setForeground(new Color(155, 89, 182));
                 setIcon(new ImageIcon("vote_icon.png"));
