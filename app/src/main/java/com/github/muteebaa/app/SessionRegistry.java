@@ -26,13 +26,13 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
+/**
+ * This class is responsible for managing the session registry.
+ */
 public class SessionRegistry {
     public static PeerNode peerNode;
     // FIXME: Hack to persist options list
     public static String _options;
-
-    private static JDialog sessionsDialog;
-    private static JTextArea sessionsTextArea;
 
     private static HttpClient client = HttpClient.newHttpClient();
     private static final List<String> registryServers = List.of(
@@ -43,6 +43,15 @@ public class SessionRegistry {
 
     private static String currRegistry = registryServers.get(0);
 
+    /**
+     * Saves the session to the registry.
+     * 
+     * @param host
+     * @param port
+     * @param options
+     * @param status
+     * @return
+     */
     public static String saveSession(String host, int port, String options, String status) {
         // FIXME: Handle port number properly
         _options = options;
@@ -67,6 +76,14 @@ public class SessionRegistry {
         return gson.fromJson(sessionId, String.class);
     }
 
+    /**
+     * Saves the session to the registry.
+     * 
+     * @param address The address of the leader of the session in the format
+     *                "host:port".
+     * @param options The voting options for the session, separated by commas.
+     * @return
+     */
     public static String saveSession(String address, String options) {
         String host = address.split(":")[0];
         // IP must be resolved client-side since server could be contacting different
@@ -84,6 +101,11 @@ public class SessionRegistry {
         return saveSession(hostIp.getHostAddress(), port, options, "");
     }
 
+    /**
+     * Loads the sessions from the registry.
+     * 
+     * @return A map of session IDs to their details.
+     */
     public static Map<String, String> loadSessions() {
         Map<String, String> sessions = new HashMap<>();
 
@@ -113,6 +135,11 @@ public class SessionRegistry {
         return sessions;
     }
 
+    /**
+     * Displays the available sessions in the given panel.
+     * 
+     * @param sessionListPanel The panel to display the sessions in.
+     */
     public static void displayAvailableSessions(JPanel sessionListPanel) {
         new SwingWorker<Void, Void>() {
             @Override
@@ -166,6 +193,12 @@ public class SessionRegistry {
         }.execute();
     }
 
+    /**
+     * Gets the voting options for a session.
+     * 
+     * @param sessionCode The session code to get the voting options for.
+     * @return A list of voting options for the session.
+     */
     public static List<String> getVotingOptions(String sessionCode) {
         HttpRequest req = buildRegistryReq("/sessions/" + sessionCode).build();
         HttpResponse<String> resp;
@@ -183,6 +216,12 @@ public class SessionRegistry {
         return session.options;
     }
 
+    /**
+     * Gets the status of a session.
+     * 
+     * @param sessionCode The session code to get the status for.
+     * @return The status of the session.
+     */
     public static String getSessionStatus(String sessionCode) {
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest req = buildRegistryReq("/sessions/" + sessionCode).build();
@@ -206,6 +245,15 @@ public class SessionRegistry {
         return session.status;
     }
 
+    /**
+     * Updates the session with the given session code.
+     * 
+     * @param sessionCode
+     * @param newStatus
+     * @param newHost
+     * @param newPort
+     * @return true if the update was successful, false otherwise
+     */
     public static boolean updateSession(String sessionCode, String newStatus, String newHost, Integer newPort) {
         HttpClient client = HttpClient.newHttpClient();
         Gson gson = new Gson();
@@ -242,6 +290,12 @@ public class SessionRegistry {
         }
     }
 
+    /**
+     * Deletes the session with the given session code.
+     * 
+     * @param sessionCode
+     * @return true if the deletion was successful, false otherwise
+     */
     private static <T> HttpResponse<T> sendWithRetry(HttpRequest req, BodyHandler<T> handler)
             throws InterruptedException, IOException {
         int maxRetries = 3;
@@ -271,6 +325,14 @@ public class SessionRegistry {
         return null;
     }
 
+    /**
+     * Replaces the host in the given URI with the new host.
+     * 
+     * @param uri
+     * @param host
+     * @return
+     * @throws URISyntaxException
+     */
     private static URI replaceHost(URI uri, String host) throws URISyntaxException {
         // NOTE: Building a String rather than using URI constructors because hosts are
         // hardcoded as scheme + authority. If that changes this can be made into a
@@ -288,6 +350,11 @@ public class SessionRegistry {
         return URI.create(newUri);
     }
 
+    /**
+     * Checks the health of the current registry server.
+     * 
+     * @return true if the server is healthy, false otherwise.
+     */
     public static boolean checkHealth() {
         HttpRequest req = buildRegistryReq(currRegistry, "/ping").build();
 
@@ -303,6 +370,11 @@ public class SessionRegistry {
         return true;
     }
 
+    /**
+     * Chooses a new registry server if the current one is unhealthy.
+     * 
+     * @return true if a new server was chosen, false otherwise.
+     */
     public static boolean chooseRegistry() {
         CompletableFuture<String> server = registryServers.stream()
                 // Asynchronously ping each server
@@ -330,10 +402,23 @@ public class SessionRegistry {
         return false;
     }
 
+    /**
+     * Builds a request to the registry server.
+     * 
+     * @param path
+     * @return
+     */
     private static Builder buildRegistryReq(String path) {
         return buildRegistryReq(currRegistry, path);
     }
 
+    /**
+     * Builds a request to the registry server.
+     * 
+     * @param hostname
+     * @param path
+     * @return
+     */
     private static Builder buildRegistryReq(String hostname, String path) {
         URI uri = URI.create(hostname + path);
         Duration timeout = Duration.ofSeconds(5);
