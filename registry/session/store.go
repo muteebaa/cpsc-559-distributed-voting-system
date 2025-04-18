@@ -81,6 +81,12 @@ func (s *SessionStore) PeerUpdate(pId clock.Id, sess *Session) error {
 	}
 
 	s.State[sess.Id].Incr(pId)
+
+	_, ok := s.State[sess.Id]
+	if !ok {
+		s.State[sess.Id] = clock.New()
+	}
+
 	s.Tracker.Mark(sess.Id)
 
 	return nil

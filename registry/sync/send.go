@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/muteebaa/cpsc-559-distributed-voting-system/clock"
+	"github.com/muteebaa/cpsc-559-distributed-voting-system/session"
 	"github.com/muteebaa/cpsc-559-distributed-voting-system/utils"
 )
 
@@ -22,19 +23,37 @@ type Peer struct {
 	LastSeen time.Time      `json:"lastSeen"`
 }
 
-var Peers = map[clock.Id]Peer{}
+var Peers = map[clock.Id]*Peer{}
 
 // TODO: Use hash of IP + Port
 func addPeerToList(p *Peer) {
 	for {
 		p.Id = clock.Id(rand.Int())
 		if _, ok := Peers[p.Id]; ok {
-			Peers[p.Id] = *p
+			Peers[p.Id] = p
 		}
 	}
 }
 
+func Write(sess *session.Session) {
+	slog.Debug("Replicating write to session", "session", sess)
+
+	_, ok := sessionStore.State[sess.Id]
+	if !ok {
+		sessionStore.State[sess.Id] = clock.New()
+	}
+
+	msg := PeerMsg{
+		SenderId: Self.Id,
+		Session:  *sess,
+		Vc:       sessionStore.State[sess.Id],
+	}
+
+	Replicate(msg)
+}
+
 func Replicate(msg PeerMsg) {
+	slog.Debug("Replicating peer message", "msg", msg)
 	ok := true
 	for _, v := range Peers {
 		if !v.Alive {
@@ -46,6 +65,8 @@ func Replicate(msg PeerMsg) {
 			v.Alive = true
 			v.LastSeen = time.Now()
 		}
+
+		slog.Debug("Sending to alive peer", "peer", v)
 
 		err := handleSend(v, msg)
 		if err != nil {
@@ -62,7 +83,7 @@ func Replicate(msg PeerMsg) {
 	}
 }
 
-func revive(p Peer) bool {
+func revive(p *Peer) bool {
 	path := "/ping"
 	url := utils.CreateUrl(p.Host, path)
 	if _, err := http.Get(url); err != nil {
@@ -72,7 +93,7 @@ func revive(p Peer) bool {
 	return true
 }
 
-func handleSend(p Peer, msg PeerMsg) error {
+func handleSend(p *Peer, msg PeerMsg) error {
 	emsg, err := json.Marshal(msg)
 	if err != nil {
 		return err
@@ -80,6 +101,7 @@ func handleSend(p Peer, msg PeerMsg) error {
 
 	path := fmt.Sprintf("/peers/sessions/%s", msg.Session.Id)
 	url := utils.CreateUrl(p.Host, path)
+	slog.Debug("Sending peer message", "peer", p, "msg", msg)
 
 	for try := 1; try <= 3; try++ {
 		_, err := http.Post(url, "application/json", bytes.NewBuffer(emsg))
@@ -94,6 +116,6 @@ func handleSend(p Peer, msg PeerMsg) error {
 	return errors.New("Could not replicate session write")
 }
 
-func SetPeers(p map[clock.Id]Peer) {
+func SetPeers(p map[clock.Id]*Peer) {
 	Peers = p
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/httplog/v2"
 
 	"github.com/muteebaa/cpsc-559-distributed-voting-system/session"
+	"github.com/muteebaa/cpsc-559-distributed-voting-system/sync"
 )
 
 var sessionStore *session.SessionStore
@@ -142,6 +143,8 @@ func addSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	go sync.Write(&s)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 }
@@ -172,6 +175,8 @@ func updateSession(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
+	go sync.Write(&s)
 
 	w.WriteHeader(http.StatusOK)
 }

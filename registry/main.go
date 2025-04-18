@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/netip"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -21,15 +21,13 @@ import (
 	"github.com/muteebaa/cpsc-559-distributed-voting-system/sync"
 )
 
-var self sync.Peer
-
 // Handles basic configuration for the rest of the program
 func main() {
 	var paddr netip.Addr
 	flag.TextVar(
 		&paddr,
 		"paddr",
-		netip.IPv6Loopback(),
+		netip.MustParseAddr("127.0.0.1"),
 		"IP address of the first peer to connect to, used if -first is not set",
 	)
 	pport := flag.Uint(
@@ -42,7 +40,7 @@ func main() {
 	flag.TextVar(
 		&addr,
 		"addr",
-		netip.IPv6Loopback(),
+		netip.MustParseAddr("127.0.0.1"),
 		"IP address the server is available on",
 	)
 	port := flag.Int("port", 12020, "Port number the server should listen on")
@@ -71,8 +69,14 @@ func main() {
 	slog.SetDefault(logger)
 
 	addrPort := netip.AddrPortFrom(addr, uint16(*port))
-	slog.Debug("initial peer port set", "addrPort", addrPort)
+	slog.Debug("initial self address set", "addrPort", addrPort)
 	var pid clock.Id
+
+	sync.Self.Host = addrPort
+	sync.Self.Alive = true
+	sync.Self.LastSeen = time.Now()
+	slog.Debug("parsed self message", "peer", sync.Self)
+
 	if !*first {
 		paddrPort := netip.AddrPortFrom(paddr, uint16(*pport))
 		slog.Debug("initial peer address set", "addrPort", paddrPort)
@@ -83,7 +87,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		pid, err = sendSelf(addrPort)
+		pid, err = sendSelf()
 		if err != nil {
 			slog.Error(err.Error())
 			os.Exit(1)
@@ -93,23 +97,21 @@ func main() {
 		slog.Debug("skipping the catchup process")
 	}
 
+	sync.Self.Id = pid
+	sessionStore := session.New(pid)
+
 	httplogOpts := httplog.Options{
 		LogLevel: logLvl,
 		Concise:  true,
 	}
 
-	sessionStore := session.New(pid)
-	self.Id = pid
-	self.Host = addrPort
-	self.Alive = true
-
-	run(*port, httplogOpts, sessionStore)
+	run(addrPort, httplogOpts, sessionStore)
 }
 
 // Begin running the HTTP server, ensuring that shutdowns may be handled
 // gracefully
-func run(port int, logOpts httplog.Options, s *session.SessionStore) {
-	server := &http.Server{Addr: fmt.Sprintf("0.0.0.0:%d", port), Handler: service(logOpts, s)}
+func run(addrPort netip.AddrPort, logOpts httplog.Options, s *session.SessionStore) {
+	server := &http.Server{Addr: addrPort.String(), Handler: service(logOpts, s)}
 	serverCtx, serverStopCtx := context.WithCancel(context.Background())
 
 	sig := make(chan os.Signal, 1)

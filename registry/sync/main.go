@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"maps"
 	"net/http"
 	"time"
 
@@ -21,6 +23,7 @@ var (
 	ErrVcIncomplete      = errors.New("Incomplete vector clock given")
 	ErrPeerInvalid       = errors.New("Peer metadata could not be decoded")
 	ErrPeerIncomplete    = errors.New("Incomplete peer information given")
+	Self                 Peer
 )
 
 type PeerMsg struct {
@@ -49,8 +52,11 @@ func Handler(s *session.SessionStore) http.Handler {
 func getPeers(w http.ResponseWriter, r *http.Request) {
 	logger := httplog.LogEntry(r.Context())
 
+	tmp := maps.Clone(Peers)
+	tmp[sessionStore.Pid] = &Self
+
 	// FIXME: Possible race on peers
-	if err := json.NewEncoder(w).Encode(Peers); err != nil {
+	if err := json.NewEncoder(w).Encode(tmp); err != nil {
 		logger.Error(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -71,8 +77,8 @@ func addPeer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if p.Host.IsValid() {
-		logger.Error(ErrPeerIncomplete.Error())
+	if !p.Host.IsValid() {
+		logger.Error(ErrPeerIncomplete.Error(), "peer", p)
 		http.Error(w, ErrPeerIncomplete.Error(), http.StatusBadRequest)
 		return
 	}
@@ -121,13 +127,21 @@ func updateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	peer := Peers[m.SenderId]
+	peer.Alive = true
+	peer.LastSeen = time.Now()
+
 	if _, ok := m.Vc[m.SenderId]; !ok {
 		logger.Error(ErrVcIncomplete.Error())
 		http.Error(w, ErrVcIncomplete.Error(), http.StatusBadRequest)
 		return
 	}
 
-	c := sessionStore.State[m.Session.Id]
+	c, ok := sessionStore.State[m.Session.Id]
+	if !ok {
+		slog.Warn("vector clock expected but not found", "clock", c)
+	}
+
 	o := c.Compare(m.Vc)
 	if !(o == clock.LESS || o == clock.INCOMPATIBLE) {
 		w.WriteHeader(http.StatusOK)

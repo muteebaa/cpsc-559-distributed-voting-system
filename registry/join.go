@@ -25,7 +25,7 @@ func join(addr netip.AddrPort) error {
 		return err
 	}
 
-	var peers map[clock.Id]sync.Peer
+	var peers map[clock.Id]*sync.Peer
 	dec := json.NewDecoder(resp.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&peers); err != nil {
@@ -37,14 +37,14 @@ func join(addr netip.AddrPort) error {
 	return nil
 }
 
-func sendSelf(host netip.AddrPort) (clock.Id, error) {
-	self := sync.Peer{Host: host}
-	msg, err := json.Marshal(self)
+func sendSelf() (clock.Id, error) {
+	msg, err := json.Marshal(sync.Self)
 	if err != nil {
 		return 0, errors.New("Could not encode payload")
 	}
 
 	left := slices.Collect(maps.Values(sync.Peers))
+	slog.Debug("Peer list grabbed from first peer", "peers", left)
 	for _, v := range left {
 		url := utils.CreateUrl(v.Host, path)
 
